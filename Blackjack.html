@@ -1,0 +1,526 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack Pro Trainer - Strategy Counter</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0b3d1c;
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 15px;
+        }
+        h1 { color: #d4af37; margin-bottom: 5px; font-size: 1.5rem; }
+        
+        .stats-bar {
+            display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;
+        }
+        .stat-box {
+            background: #222; padding: 8px 15px; border-radius: 5px; border: 1px solid #d4af37;
+            font-size: 1.1rem; font-weight: bold; color: #fff;
+        }
+        .correct-score { color: #2ecc71; }
+        .wrong-score { color: #e74c3c; }
+        
+        .bet-controls { margin-bottom: 20px; }
+        .bet-btn {
+            background: #333; color: white; border: 1px solid #d4af37; 
+            padding: 6px 20px; margin: 0 5px; cursor: pointer; 
+            border-radius: 4px; font-size: 1rem; font-weight: bold; transition: 0.2s;
+        }
+        .bet-btn:hover:not(:disabled) { background: #555; }
+        .bet-btn.active { background: #d4af37; color: black; }
+        .bet-btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #666; }
+
+        .board { max-width: 650px; margin: 0 auto; background: rgba(0,0,0,0.4); padding: 20px; border-radius: 10px; border: 2px solid #145a2b; position: relative; }
+        
+        #feedback-toast {
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            padding: 8px 15px; border-radius: 20px; font-weight: bold; opacity: 0;
+            transition: opacity 0.3s; z-index: 10; font-size: 0.9rem; pointer-events: none;
+        }
+        #feedback-toast.green { background: #27ae60; color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #feedback-toast.red { background: #c0392b; color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+
+        .area-title { font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8rem;}
+        
+        .cards { display: flex; justify-content: center; gap: 8px; min-height: 100px; margin-bottom: 5px; flex-wrap: wrap; }
+        
+        .card { 
+            background: white; color: black; width: 60px; height: 90px; 
+            border-radius: 5px; display: flex; justify-content: center; align-items: center; 
+            font-size: 1.3rem; font-weight: bold; box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+        }
+        .card.red { color: #d32f2f; }
+        
+        .score-display { font-size: 1rem; font-weight: bold; color: #d4af37; min-height: 20px; margin-bottom: 15px; }
+        
+        .player-hands-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .hand-area { padding: 10px; border-radius: 8px; border: 2px solid transparent; min-width: 150px; }
+        .hand-area.active { border-color: #f1c40f; background: rgba(255,255,255,0.05); }
+
+        #message { font-size: 1.2rem; font-weight: bold; margin: 15px 0; min-height: 30px; color: #f1c40f; }
+        
+        .controls { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .controls button {
+            background-color: #555; border: 2px solid transparent; padding: 12px 18px; font-size: 0.95rem;
+            font-weight: bold; color: white; cursor: pointer; border-radius: 5px; transition: 0.2s;
+        }
+        .controls button:disabled { background-color: #333; color: #666; cursor: not-allowed; border-color: transparent; }
+        
+        #btn-deal { background-color: #27ae60; }
+        #btn-deal:hover:not(:disabled) { background-color: #2ecc71; }
+        #btn-hit:not(:disabled) { background-color: #2980b9; }
+        #btn-stand:not(:disabled) { background-color: #c0392b; }
+        #btn-double:not(:disabled) { background-color: #e67e22; }
+        #btn-split:not(:disabled) { background-color: #8e44ad; }
+    </style>
+</head>
+<body>
+
+    <h1>Blackjack Pro Trainer</h1>
+    <div class="stats-bar">
+        <div class="stat-box" id="bankroll-display">Bankroll: 50 €</div>
+        <div class="stat-box" id="bet-display">Einsatz: 1 €</div>
+        <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
+        <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
+    </div>
+
+    <div class="bet-controls" id="bet-controls">
+        <button class="bet-btn active" data-bet="1">1 €</button>
+        <button class="bet-btn" data-bet="2">2 €</button>
+        <button class="bet-btn" data-bet="5">5 €</button>
+    </div>
+
+    <div class="board">
+        <div id="feedback-toast"></div>
+
+        <div class="area-title">Dealer</div>
+        <div class="cards" id="dealer-cards"></div>
+        <div class="score-display" id="dealer-score"></div>
+
+        <div id="message">Wähle deinen Einsatz und klicke auf Deal!</div>
+
+        <div class="area-title">Deine Hand / Hände</div>
+        <div class="player-hands-container" id="player-hands-container"></div>
+
+        <div class="controls">
+            <button id="btn-deal">Deal</button>
+            <button id="btn-hit" disabled>Hit</button>
+            <button id="btn-stand" disabled>Stand</button>
+            <button id="btn-double" disabled>Double</button>
+            <button id="btn-split" disabled>Split</button>
+        </div>
+    </div>
+
+    <script>
+        let bankroll = 50;
+        let bet = 1;
+        let correctDecisions = 0;
+        let wrongDecisions = 0;
+        
+        let deck = [];
+        let dealerHand = [];
+        let hands = []; 
+        let currentHandIndex = 0;
+        let gameActive = false;
+
+        const suits = ['♠', '♥', '♦', '♣'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+        // DOM Elements
+        const bankrollEl = document.getElementById('bankroll-display');
+        const betDisplayEl = document.getElementById('bet-display');
+        const correctDisplayEl = document.getElementById('correct-display');
+        const wrongDisplayEl = document.getElementById('wrong-display');
+        const msgEl = document.getElementById('message');
+        const dealerCardsEl = document.getElementById('dealer-cards');
+        const dealerScoreEl = document.getElementById('dealer-score');
+        const playerHandsContainer = document.getElementById('player-hands-container');
+        const toastEl = document.getElementById('feedback-toast');
+        const betButtons = document.querySelectorAll('.bet-btn');
+        
+        const btnDeal = document.getElementById('btn-deal');
+        const btnHit = document.getElementById('btn-hit');
+        const btnStand = document.getElementById('btn-stand');
+        const btnDouble = document.getElementById('btn-double');
+        const btnSplit = document.getElementById('btn-split');
+
+        // --- AUDIO ENGINE ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+        }
+
+        function playSound(type) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'correct') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // Note C5
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // Slide to Note E5
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.25);
+            }
+        }
+
+        // --- EINSATZ ---
+        betButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (gameActive) return; 
+                bet = parseInt(e.target.getAttribute('data-bet'));
+                betButtons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                betDisplayEl.innerText = `Einsatz: ${bet} €`;
+            });
+        });
+
+        function buildDeck() {
+            deck = [];
+            for (let d = 0; d < 6; d++) {
+                for (let suit of suits) {
+                    for (let value of values) {
+                        deck.push({ suit, value });
+                    }
+                }
+            }
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        function getScore(handCards) {
+            let score = 0;
+            let aces = 0;
+            for (let card of handCards) {
+                if (card.value === 'A') { score += 11; aces++; } 
+                else if (['J', 'Q', 'K'].includes(card.value)) { score += 10; } 
+                else { score += parseInt(card.value); }
+            }
+            while (score > 21 && aces > 0) { score -= 10; aces--; }
+            return score;
+        }
+
+        function renderCard(card, hidden = false) {
+            const div = document.createElement('div');
+            div.className = 'card';
+            if (hidden) {
+                div.style.background = '#333';
+                div.style.border = '1px solid #777';
+                return div;
+            }
+            if (card.suit === '♥' || card.suit === '♦') div.classList.add('red');
+            div.innerText = card.value + card.suit;
+            return div;
+        }
+
+        function showFeedback(text, type) {
+            toastEl.innerText = text;
+            toastEl.className = type;
+            setTimeout(() => { toastEl.className = ''; }, 2000);
+        }
+
+        // --- BASISSTRATEGIE ---
+        function getCorrectMove(handCards, dealerCard) {
+            let val1 = ['J', 'Q', 'K'].includes(handCards[0].value) ? '10' : handCards[0].value;
+            let val2 = handCards.length === 2 ? (['J', 'Q', 'K'].includes(handCards[1].value) ? '10' : handCards[1].value) : null;
+            
+            const isPair = handCards.length === 2 && val1 === val2;
+            const isSoft = handCards.length === 2 && (handCards[0].value === 'A' || handCards[1].value === 'A');
+            const dVal = ['J','Q','K'].includes(dealerCard.value) ? 10 : (dealerCard.value === 'A' ? 11 : parseInt(dealerCard.value));
+            const pScore = getScore(handCards);
+
+            if (handCards.length === 2) {
+                if (isPair) {
+                    let v = val1;
+                    if (v === 'A' || v === '8') return 'P';
+                    if (v === '10') return 'S';
+                    if (v === '9') return [7, 10, 11].includes(dVal) ? 'S' : 'P';
+                    if (v === '7') return dVal <= 7 ? 'P' : 'H';
+                    if (v === '6') return dVal <= 6 ? 'P' : 'H';
+                    if (v === '5') return dVal <= 9 ? 'D' : 'H';
+                    if (v === '4') return 'H';
+                    if (v === '2' || v === '3') return dVal <= 7 ? 'P' : 'H';
+                }
+                if (isSoft && !isPair) {
+                    let rawVal = handCards[0].value === 'A' ? handCards[1].value : handCards[0].value;
+                    let otherVal = ['J', 'Q', 'K'].includes(rawVal) ? 10 : parseInt(rawVal);
+
+                    if (otherVal >= 8) return 'S';
+                    if (otherVal === 7) {
+                        if ([2, 7, 8].includes(dVal)) return 'S';
+                        if (dVal >= 3 && dVal <= 6) return 'D';
+                        return 'H';
+                    }
+                    if (otherVal === 6) return (dVal >= 3 && dVal <= 6) ? 'D' : 'H';
+                    if (otherVal === 4 || otherVal === 5) return (dVal >= 4 && dVal <= 6) ? 'D' : 'H';
+                    if (otherVal === 2 || otherVal === 3) return (dVal >= 5 && dVal <= 6) ? 'D' : 'H';
+                }
+            }
+
+            if (pScore >= 17) return 'S';
+            if (pScore >= 13 && pScore <= 16) return dVal <= 6 ? 'S' : 'H';
+            if (pScore === 12) return (dVal >= 4 && dVal <= 6) ? 'S' : 'H';
+            if (handCards.length === 2 && pScore === 11) return dVal <= 10 ? 'D' : 'H';
+            if (handCards.length === 2 && pScore === 10) return dVal <= 9 ? 'D' : 'H';
+            if (handCards.length === 2 && pScore === 9) return (dVal >= 3 && dVal <= 6) ? 'D' : 'H';
+            
+            return 'H';
+        }
+
+        // --- BUTTON HANDLER ---
+        function handlePlayerAction(action) {
+            initAudio(); 
+            if (!gameActive) return;
+            let currentHand = hands[currentHandIndex];
+            let correctAction = getCorrectMove(currentHand.cards, dealerHand[0]);
+            
+            if (correctAction === 'D' && bankroll < bet) correctAction = 'H';
+            if (correctAction === 'P' && (bankroll < bet || hands.length > 1)) {
+                let handScore = getScore(currentHand.cards);
+                correctAction = handScore >= 17 ? 'S' : 'H';
+            }
+
+            if(action === correctAction) {
+                correctDecisions++;
+                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
+                showFeedback("Richtig!", "green");
+                playSound('correct');
+            } else {
+                wrongDecisions++;
+                wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
+                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
+                showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
+                playSound('wrong');
+            }
+
+            if (action === 'H') executeHit();
+            else if (action === 'S') executeStand();
+            else if (action === 'D') executeDouble();
+            else if (action === 'P') executeSplit();
+        }
+
+        function updateUI(hideDealerCard = true) {
+            dealerCardsEl.innerHTML = '';
+            dealerHand.forEach((card, i) => dealerCardsEl.appendChild(renderCard(card, i === 1 && hideDealerCard)));
+            dealerScoreEl.innerText = hideDealerCard ? getScore([dealerHand[0]]) : getScore(dealerHand);
+
+            playerHandsContainer.innerHTML = '';
+            hands.forEach((hand, index) => {
+                const handDiv = document.createElement('div');
+                handDiv.className = `hand-area ${index === currentHandIndex && gameActive ? 'active' : ''}`;
+                
+                const cardsDiv = document.createElement('div');
+                cardsDiv.className = 'cards';
+                hand.cards.forEach(card => cardsDiv.appendChild(renderCard(card)));
+                
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'score-display';
+                let s = getScore(hand.cards);
+                scoreDiv.innerText = hand.bust ? 'Bust!' : s;
+                
+                if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
+
+                handDiv.appendChild(cardsDiv);
+                handDiv.appendChild(scoreDiv);
+                playerHandsContainer.appendChild(handDiv);
+            });
+
+            bankrollEl.innerText = `Bankroll: ${bankroll} €`;
+            updateButtons();
+        }
+
+        function updateButtons() {
+            betButtons.forEach(btn => btn.disabled = gameActive);
+
+            if (!gameActive) {
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
+                btnDeal.disabled = false;
+                return;
+            }
+            btnDeal.disabled = true;
+            let hand = hands[currentHandIndex];
+            
+            if (hand.bust || hand.stood || getScore(hand.cards) === 21) {
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
+                return;
+            }
+
+            btnHit.disabled = false;
+            btnStand.disabled = false;
+            
+            btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
+            
+            let val1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
+            let val2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
+            const isPair = hand.cards.length === 2 && val1 === val2;
+            
+            btnSplit.disabled = !(isPair && hands.length === 1 && bankroll >= bet);
+        }
+
+        function startGame() {
+            initAudio(); 
+            if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
+            if (deck.length < 50) buildDeck();
+
+            bankroll -= bet;
+            dealerHand = [deck.pop(), deck.pop()];
+            hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
+            currentHandIndex = 0;
+            gameActive = true;
+            msgEl.innerText = "Dein Zug!";
+
+            updateUI();
+
+            if (getScore(hands[0].cards) === 21) {
+                hands[0].stood = true;
+                gameActive = false;
+                determineWinner();
+            }
+        }
+
+        function executeHit() {
+            let hand = hands[currentHandIndex];
+            hand.cards.push(deck.pop());
+            if (getScore(hand.cards) > 21) hand.bust = true;
+            advanceHand();
+        }
+
+        function executeStand() {
+            hands[currentHandIndex].stood = true;
+            advanceHand();
+        }
+
+        function executeDouble() {
+            let hand = hands[currentHandIndex];
+            bankroll -= bet;
+            hand.bet += bet;
+            hand.cards.push(deck.pop());
+            if (getScore(hand.cards) > 21) hand.bust = true;
+            else hand.stood = true;
+            advanceHand();
+        }
+
+        function executeSplit() {
+            let hand = hands[0];
+            bankroll -= bet;
+            let c1 = hand.cards[0];
+            let c2 = hand.cards[1];
+            
+            hands = [
+                { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false },
+                { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false }
+            ];
+            
+            if (c1.value === 'A') {
+                hands[0].stood = true;
+                hands[1].stood = true;
+                updateUI(); 
+            }
+            
+            advanceHand(); 
+        }
+
+        function advanceHand() {
+            while (currentHandIndex < hands.length) {
+                let hand = hands[currentHandIndex];
+                if (hand.bust || hand.stood || getScore(hand.cards) === 21) {
+                    currentHandIndex++;
+                } else {
+                    break;
+                }
+            }
+            
+            if (currentHandIndex >= hands.length) {
+                gameActive = false;
+                playDealer();
+            } else {
+                updateUI();
+            }
+        }
+
+        function playDealer() {
+            updateUI(false);
+            let allBust = hands.every(h => h.bust);
+            if (!allBust) {
+                let dScore = getScore(dealerHand);
+                while (dScore < 17) {
+                    dealerHand.push(deck.pop());
+                    dScore = getScore(dealerHand);
+                }
+            }
+            updateUI(false);
+            determineWinner();
+        }
+
+        function determineWinner() {
+            let dScore = getScore(dealerHand);
+            let dBust = dScore > 21;
+            let resultTexts = [];
+
+            hands.forEach((hand, idx) => {
+                let pScore = getScore(hand.cards);
+                let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
+
+                if (hand.bust) {
+                    resultTexts.push(label + "Bust (-)");
+                } else if (dBust) {
+                    resultTexts.push(label + "Dealer Bust (+)");
+                    bankroll += hand.bet * 2;
+                } else if (pScore > dScore) {
+                    if (pScore === 21 && hand.cards.length === 2 && hands.length === 1) {
+                        if (dScore === 21 && dealerHand.length === 2) {
+                            resultTexts.push(label + "Push (Beide Blackjack)");
+                            bankroll += hand.bet;
+                        } else {
+                            resultTexts.push(label + "Blackjack (+1.5)");
+                            bankroll += hand.bet + (hand.bet * 1.5);
+                        }
+                    } else {
+                        resultTexts.push(label + "Gewonnen (+)");
+                        bankroll += hand.bet * 2;
+                    }
+                } else if (pScore < dScore) {
+                    resultTexts.push(label + "Verloren (-)");
+                } else {
+                    resultTexts.push(label + "Push (=)");
+                    bankroll += hand.bet;
+                }
+            });
+
+            msgEl.innerHTML = resultTexts.join('<br>');
+            bankrollEl.innerText = `Bankroll: ${bankroll} €`;
+            updateButtons();
+        }
+
+        // Listener 
+        btnDeal.addEventListener('click', startGame);
+        btnHit.addEventListener('click', () => handlePlayerAction('H'));
+        btnStand.addEventListener('click', () => handlePlayerAction('S'));
+        btnDouble.addEventListener('click', () => handlePlayerAction('D'));
+        btnSplit.addEventListener('click', () => handlePlayerAction('P'));
+
+        buildDeck();
+    </script>
+</body>
+</html>
