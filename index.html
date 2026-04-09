@@ -134,7 +134,6 @@
         const suits = ['♠', '♥', '♦', '♣'];
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-        // DOM Elements
         const bankrollEl = document.getElementById('bankroll-display');
         const betDisplayEl = document.getElementById('bet-display');
         const correctDisplayEl = document.getElementById('correct-display');
@@ -153,7 +152,6 @@
         const btnSplit = document.getElementById('btn-split');
         const btnSurrender = document.getElementById('btn-surrender');
 
-        // --- AUDIO ENGINE ---
         let audioCtx;
         function initAudio() {
             if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -164,14 +162,9 @@
             initAudio();
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
-
-            osc.onended = () => {
-                osc.disconnect();
-                gainNode.disconnect();
-            };
+            osc.onended = () => { osc.disconnect(); gainNode.disconnect(); };
 
             if (type === 'correct') {
                 osc.type = 'sine';
@@ -192,7 +185,6 @@
             }
         }
 
-        // --- EINSATZ ---
         betButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 if (gameActive) return; 
@@ -226,15 +218,9 @@
                 else if (['J', 'Q', 'K'].includes(card.value)) { score += 10; } 
                 else { score += parseInt(card.value); }
             }
-            
             let isSoft = false;
-            while (score > 21 && aces > 0) { 
-                score -= 10; 
-                aces--; 
-            }
-            if (aces > 0 && score <= 21) {
-                isSoft = true;
-            }
+            while (score > 21 && aces > 0) { score -= 10; aces--; }
+            if (aces > 0 && score <= 21) { isSoft = true; }
             return { score, isSoft };
         }
 
@@ -258,34 +244,27 @@
             toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2000);
         }
 
-        // --- BASISSTRATEGIE ---
         function getCorrectMove(handCards, dealerCard, canSplit, canDouble, canSurrender) {
             const { score: pScore, isSoft } = getHandDetails(handCards);
             const dVal = ['J','Q','K'].includes(dealerCard.value) ? 10 : (dealerCard.value === 'A' ? 11 : parseInt(dealerCard.value));
             
-            // 1. Surrender Check
             if (canSurrender) {
-                if (pScore === 16 && [9, 10, 11].includes(dVal)) return 'R'; // R = Surrender
+                if (pScore === 16 && [9, 10, 11].includes(dVal)) return 'R';
                 if (pScore === 15 && dVal === 10) return 'R';
             }
 
-            // 2. Split Check
             if (canSplit) {
                 let v = handCards[0].value;
                 if (['J', 'Q', 'K'].includes(v)) v = '10';
-                
                 if (v === 'A' || v === '8') return 'P';
-                if (v === '9' && [7, 10, 11].includes(dVal) === false) return 'P';
+                if (v === '9' && ![7, 10, 11].includes(dVal)) return 'P';
                 if (v === '7' && dVal <= 7) return 'P';
                 if (v === '6' && dVal <= 6) return 'P';
-                if (v === '4' && [5, 6].includes(dVal)) return 'P'; // Erweitert für DAS (Double after Split)
+                if (v === '4' && [5, 6].includes(dVal)) return 'P';
                 if ((v === '2' || v === '3') && dVal <= 7) return 'P';
             }
 
-            // 3. Soft Hands
             if (isSoft) {
-                let softVal = pScore - 11; // Entfernt das eine Ass
-                
                 if (pScore >= 19) return 'S';
                 if (pScore === 18) {
                     if ([2, 7, 8].includes(dVal)) return 'S';
@@ -297,25 +276,21 @@
                 if (pScore === 13 || pScore === 14) return (canDouble && dVal >= 5 && dVal <= 6) ? 'D' : 'H';
             }
 
-            // 4. Hard Hands
             if (pScore >= 17) return 'S';
             if (pScore >= 13 && pScore <= 16) return dVal <= 6 ? 'S' : 'H';
             if (pScore === 12) return (dVal >= 4 && dVal <= 6) ? 'S' : 'H';
-            if (pScore === 11) return canDouble ? 'D' : 'H'; // Gegen alles doppel (Standard, inkl. Ass)
+            if (pScore === 11) return canDouble ? 'D' : 'H';
             if (pScore === 10) return (canDouble && dVal <= 9) ? 'D' : 'H';
             if (pScore === 9) return (canDouble && dVal >= 3 && dVal <= 6) ? 'D' : 'H';
             
             return 'H';
         }
 
-        // --- BUTTON HANDLER ---
         function handlePlayerAction(action) {
             initAudio(); 
             if (!gameActive) return;
-            
             let hand = hands[currentHandIndex];
             
-            // Prüfe Verfügbarkeit der Aktionen für den Strategie-Check
             const canSurrender = hand.cards.length === 2 && hands.length === 1;
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
             const canSplit = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value && bankroll >= bet && hands.length === 1;
@@ -351,33 +326,26 @@
             hands.forEach((hand, index) => {
                 const handDiv = document.createElement('div');
                 handDiv.className = `hand-area ${index === currentHandIndex && gameActive ? 'active' : ''}`;
-                
                 const cardsDiv = document.createElement('div');
                 cardsDiv.className = 'cards';
                 hand.cards.forEach(card => cardsDiv.appendChild(renderCard(card)));
-                
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = 'score-display';
                 let s = getHandDetails(hand.cards).score;
-                
                 if (hand.surrendered) scoreDiv.innerText = 'Surrendered';
                 else if (hand.bust) scoreDiv.innerText = 'Bust!';
                 else scoreDiv.innerText = s;
-                
                 if (hand.cards.length === 2 && s === 21 && hands.length === 1 && !hand.surrendered) scoreDiv.innerText = 'Blackjack!';
-
                 handDiv.appendChild(cardsDiv);
                 handDiv.appendChild(scoreDiv);
                 playerHandsContainer.appendChild(handDiv);
             });
-
             bankrollEl.innerText = `Bankroll: ${bankroll} €`;
             updateButtons();
         }
 
         function updateButtons() {
             betButtons.forEach(btn => btn.disabled = gameActive);
-
             if (!gameActive) {
                 btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
                 btnDeal.disabled = false;
@@ -385,19 +353,14 @@
             }
             btnDeal.disabled = true;
             let hand = hands[currentHandIndex];
-            
             if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
                 btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
                 return;
             }
-
             btnHit.disabled = false;
             btnStand.disabled = false;
-            
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
             btnSurrender.disabled = !(hand.cards.length === 2 && hands.length === 1);
-            
-            // Split nur erlauben, wenn Kartenwert *exakt* gleich ist (Keine 10-K Splits)
             const isPair = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value;
             btnSplit.disabled = !(isPair && hands.length === 1 && bankroll >= bet);
         }
@@ -405,35 +368,31 @@
         function startGame() {
             initAudio(); 
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
-            if (deck.length < 100) buildDeck(); // Früher mischen für realistische Deck Penetration
-
+            if (deck.length < 100) buildDeck();
             bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false, surrendered: false }];
             currentHandIndex = 0;
             gameActive = true;
             msgEl.innerText = "Dein Zug!";
-
             if (getHandDetails(hands[0].cards).score === 21) {
                 hands[0].stood = true;
                 gameActive = false;
-                updateUI(false); // Dealer Karte bei direktem Blackjack aufdecken
+                updateUI(false);
                 determineWinner();
-            } else {
-                updateUI(true);
-            }
+            } else { updateUI(true); }
         }
 
         function executeHit() {
             let hand = hands[currentHandIndex];
             hand.cards.push(deck.pop());
             if (getHandDetails(hand.cards).score > 21) hand.bust = true;
-            advanceHand();
+            advanceHand(false); // <--- FIX: Hier wird NICHT automatisch index++ gemacht
         }
 
         function executeStand() {
             hands[currentHandIndex].stood = true;
-            advanceHand();
+            advanceHand(true);
         }
 
         function executeDouble() {
@@ -443,14 +402,14 @@
             hand.cards.push(deck.pop());
             if (getHandDetails(hand.cards).score > 21) hand.bust = true;
             else hand.stood = true;
-            advanceHand();
+            advanceHand(true);
         }
         
         function executeSurrender() {
             let hand = hands[currentHandIndex];
             hand.surrendered = true;
-            bankroll += hand.bet / 2; // Halber Einsatz zurück
-            advanceHand();
+            bankroll += hand.bet / 2;
+            advanceHand(true);
         }
 
         function executeSplit() {
@@ -458,49 +417,36 @@
             bankroll -= bet;
             let c1 = hand.cards[0];
             let c2 = hand.cards[1];
-            
-            // Hand durch zwei neue Hände ersetzen
             let newHand1 = { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
             let newHand2 = { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
-            
             hands.splice(currentHandIndex, 1, newHand1, newHand2);
-            
             if (c1.value === 'A') {
                 hands[currentHandIndex].stood = true;
                 hands[currentHandIndex + 1].stood = true;
             }
-            
             updateUI(); 
-            advanceHand(false); // Check, falls die neue gezogene Karte ein Blackjack/Bust ist
+            advanceHand(false); 
         }
 
         function advanceHand(incrementIndex = true) {
             if (incrementIndex) currentHandIndex++;
-            
             while (currentHandIndex < hands.length) {
                 let hand = hands[currentHandIndex];
                 if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
                     currentHandIndex++;
-                } else {
-                    break;
-                }
+                } else { break; }
             }
-            
             if (currentHandIndex >= hands.length) {
                 gameActive = false;
                 playDealer();
-            } else {
-                updateUI();
-            }
+            } else { updateUI(); }
         }
 
         function playDealer() {
             updateUI(false);
             let allHandsFinished = hands.every(h => h.bust || h.surrendered || (h.cards.length === 2 && getHandDetails(h.cards).score === 21 && hands.length === 1));
-            
             if (!allHandsFinished) {
                 let dScore = getHandDetails(dealerHand).score;
-                // Soft 17 Regel (S17 - Stands on all 17s). Für H17 hier anpassen.
                 while (dScore < 17) {
                     dealerHand.push(deck.pop());
                     dScore = getHandDetails(dealerHand).score;
@@ -514,45 +460,25 @@
             let dScore = getHandDetails(dealerHand).score;
             let dBust = dScore > 21;
             let resultTexts = [];
-
             hands.forEach((hand, idx) => {
                 let pScore = getHandDetails(hand.cards).score;
                 let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
-
-                if (hand.surrendered) {
-                    resultTexts.push(label + "Surrender (1/2 Einsatz zurück)");
-                } else if (hand.bust) {
-                    resultTexts.push(label + "Bust (-)");
-                } else if (dBust) {
-                    resultTexts.push(label + "Dealer Bust (+)");
-                    bankroll += hand.bet * 2;
-                } else if (pScore > dScore) {
+                if (hand.surrendered) resultTexts.push(label + "Surrender (1/2 zurück)");
+                else if (hand.bust) resultTexts.push(label + "Bust (-)");
+                else if (dBust) { resultTexts.push(label + "Dealer Bust (+)"); bankroll += hand.bet * 2; }
+                else if (pScore > dScore) {
                     if (pScore === 21 && hand.cards.length === 2 && hands.length === 1) {
-                        if (dScore === 21 && dealerHand.length === 2) {
-                            resultTexts.push(label + "Push (Beide Blackjack)");
-                            bankroll += hand.bet;
-                        } else {
-                            resultTexts.push(label + "Blackjack (+1.5)");
-                            bankroll += hand.bet + (hand.bet * 1.5);
-                        }
-                    } else {
-                        resultTexts.push(label + "Gewonnen (+)");
-                        bankroll += hand.bet * 2;
-                    }
-                } else if (pScore < dScore) {
-                    resultTexts.push(label + "Verloren (-)");
-                } else {
-                    resultTexts.push(label + "Push (=)");
-                    bankroll += hand.bet;
-                }
+                        if (dScore === 21 && dealerHand.length === 2) { resultTexts.push(label + "Push (BJ)"); bankroll += hand.bet; }
+                        else { resultTexts.push(label + "Blackjack (+1.5)"); bankroll += hand.bet + (hand.bet * 1.5); }
+                    } else { resultTexts.push(label + "Gewonnen (+)"); bankroll += hand.bet * 2; }
+                } else if (pScore < dScore) resultTexts.push(label + "Verloren (-)");
+                else { resultTexts.push(label + "Push (=)"); bankroll += hand.bet; }
             });
-
             msgEl.innerHTML = resultTexts.join('<br>');
             bankrollEl.innerText = `Bankroll: ${bankroll} €`;
             updateButtons();
         }
 
-        // Listener 
         btnDeal.addEventListener('click', startGame);
         btnHit.addEventListener('click', () => handlePlayerAction('H'));
         btnStand.addEventListener('click', () => handlePlayerAction('S'));
