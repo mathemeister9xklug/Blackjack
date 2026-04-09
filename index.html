@@ -1,4 +1,4 @@
-<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -77,6 +77,7 @@
         #btn-stand:not(:disabled) { background-color: #c0392b; }
         #btn-double:not(:disabled) { background-color: #e67e22; }
         #btn-split:not(:disabled) { background-color: #8e44ad; }
+        #btn-surrender:not(:disabled) { background-color: #7f8c8d; }
     </style>
 </head>
 <body>
@@ -113,6 +114,7 @@
             <button id="btn-stand" disabled>Stand</button>
             <button id="btn-double" disabled>Double</button>
             <button id="btn-split" disabled>Split</button>
+            <button id="btn-surrender" disabled>Surrender</button>
         </div>
     </div>
 
@@ -127,6 +129,7 @@
         let hands = []; 
         let currentHandIndex = 0;
         let gameActive = false;
+        let toastTimeout;
 
         const suits = ['♠', '♥', '♦', '♣'];
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -148,6 +151,7 @@
         const btnStand = document.getElementById('btn-stand');
         const btnDouble = document.getElementById('btn-double');
         const btnSplit = document.getElementById('btn-split');
+        const btnSurrender = document.getElementById('btn-surrender');
 
         // --- AUDIO ENGINE ---
         let audioCtx;
@@ -164,10 +168,15 @@
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
 
+            osc.onended = () => {
+                osc.disconnect();
+                gainNode.disconnect();
+            };
+
             if (type === 'correct') {
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // Note C5
-                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // Slide to Note E5
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
                 gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
                 osc.start(audioCtx.currentTime);
@@ -209,7 +218,7 @@
             }
         }
 
-        function getScore(handCards) {
+        function getHandDetails(handCards) {
             let score = 0;
             let aces = 0;
             for (let card of handCards) {
@@ -217,8 +226,16 @@
                 else if (['J', 'Q', 'K'].includes(card.value)) { score += 10; } 
                 else { score += parseInt(card.value); }
             }
-            while (score > 21 && aces > 0) { score -= 10; aces--; }
-            return score;
+            
+            let isSoft = false;
+            while (score > 21 && aces > 0) { 
+                score -= 10; 
+                aces--; 
+            }
+            if (aces > 0 && score <= 21) {
+                isSoft = true;
+            }
+            return { score, isSoft };
         }
 
         function renderCard(card, hidden = false) {
@@ -235,55 +252,58 @@
         }
 
         function showFeedback(text, type) {
+            clearTimeout(toastTimeout);
             toastEl.innerText = text;
             toastEl.className = type;
-            setTimeout(() => { toastEl.className = ''; }, 2000);
+            toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2000);
         }
 
         // --- BASISSTRATEGIE ---
-        function getCorrectMove(handCards, dealerCard) {
-            let val1 = ['J', 'Q', 'K'].includes(handCards[0].value) ? '10' : handCards[0].value;
-            let val2 = handCards.length === 2 ? (['J', 'Q', 'K'].includes(handCards[1].value) ? '10' : handCards[1].value) : null;
-            
-            const isPair = handCards.length === 2 && val1 === val2;
-            const isSoft = handCards.length === 2 && (handCards[0].value === 'A' || handCards[1].value === 'A');
+        function getCorrectMove(handCards, dealerCard, canSplit, canDouble, canSurrender) {
+            const { score: pScore, isSoft } = getHandDetails(handCards);
             const dVal = ['J','Q','K'].includes(dealerCard.value) ? 10 : (dealerCard.value === 'A' ? 11 : parseInt(dealerCard.value));
-            const pScore = getScore(handCards);
-
-            if (handCards.length === 2) {
-                if (isPair) {
-                    let v = val1;
-                    if (v === 'A' || v === '8') return 'P';
-                    if (v === '10') return 'S';
-                    if (v === '9') return [7, 10, 11].includes(dVal) ? 'S' : 'P';
-                    if (v === '7') return dVal <= 7 ? 'P' : 'H';
-                    if (v === '6') return dVal <= 6 ? 'P' : 'H';
-                    if (v === '5') return dVal <= 9 ? 'D' : 'H';
-                    if (v === '4') return 'H';
-                    if (v === '2' || v === '3') return dVal <= 7 ? 'P' : 'H';
-                }
-                if (isSoft && !isPair) {
-                    let rawVal = handCards[0].value === 'A' ? handCards[1].value : handCards[0].value;
-                    let otherVal = ['J', 'Q', 'K'].includes(rawVal) ? 10 : parseInt(rawVal);
-
-                    if (otherVal >= 8) return 'S';
-                    if (otherVal === 7) {
-                        if ([2, 7, 8].includes(dVal)) return 'S';
-                        if (dVal >= 3 && dVal <= 6) return 'D';
-                        return 'H';
-                    }
-                    if (otherVal === 6) return (dVal >= 3 && dVal <= 6) ? 'D' : 'H';
-                    if (otherVal === 4 || otherVal === 5) return (dVal >= 4 && dVal <= 6) ? 'D' : 'H';
-                    if (otherVal === 2 || otherVal === 3) return (dVal >= 5 && dVal <= 6) ? 'D' : 'H';
-                }
+            
+            // 1. Surrender Check
+            if (canSurrender) {
+                if (pScore === 16 && [9, 10, 11].includes(dVal)) return 'R'; // R = Surrender
+                if (pScore === 15 && dVal === 10) return 'R';
             }
 
+            // 2. Split Check
+            if (canSplit) {
+                let v = handCards[0].value;
+                if (['J', 'Q', 'K'].includes(v)) v = '10';
+                
+                if (v === 'A' || v === '8') return 'P';
+                if (v === '9' && [7, 10, 11].includes(dVal) === false) return 'P';
+                if (v === '7' && dVal <= 7) return 'P';
+                if (v === '6' && dVal <= 6) return 'P';
+                if (v === '4' && [5, 6].includes(dVal)) return 'P'; // Erweitert für DAS (Double after Split)
+                if ((v === '2' || v === '3') && dVal <= 7) return 'P';
+            }
+
+            // 3. Soft Hands
+            if (isSoft) {
+                let softVal = pScore - 11; // Entfernt das eine Ass
+                
+                if (pScore >= 19) return 'S';
+                if (pScore === 18) {
+                    if ([2, 7, 8].includes(dVal)) return 'S';
+                    if (dVal >= 3 && dVal <= 6) return canDouble ? 'D' : 'S';
+                    return 'H';
+                }
+                if (pScore === 17) return (canDouble && dVal >= 3 && dVal <= 6) ? 'D' : 'H';
+                if (pScore === 15 || pScore === 16) return (canDouble && dVal >= 4 && dVal <= 6) ? 'D' : 'H';
+                if (pScore === 13 || pScore === 14) return (canDouble && dVal >= 5 && dVal <= 6) ? 'D' : 'H';
+            }
+
+            // 4. Hard Hands
             if (pScore >= 17) return 'S';
             if (pScore >= 13 && pScore <= 16) return dVal <= 6 ? 'S' : 'H';
             if (pScore === 12) return (dVal >= 4 && dVal <= 6) ? 'S' : 'H';
-            if (handCards.length === 2 && pScore === 11) return dVal <= 10 ? 'D' : 'H';
-            if (handCards.length === 2 && pScore === 10) return dVal <= 9 ? 'D' : 'H';
-            if (handCards.length === 2 && pScore === 9) return (dVal >= 3 && dVal <= 6) ? 'D' : 'H';
+            if (pScore === 11) return canDouble ? 'D' : 'H'; // Gegen alles doppel (Standard, inkl. Ass)
+            if (pScore === 10) return (canDouble && dVal <= 9) ? 'D' : 'H';
+            if (pScore === 9) return (canDouble && dVal >= 3 && dVal <= 6) ? 'D' : 'H';
             
             return 'H';
         }
@@ -292,14 +312,15 @@
         function handlePlayerAction(action) {
             initAudio(); 
             if (!gameActive) return;
-            let currentHand = hands[currentHandIndex];
-            let correctAction = getCorrectMove(currentHand.cards, dealerHand[0]);
             
-            if (correctAction === 'D' && bankroll < bet) correctAction = 'H';
-            if (correctAction === 'P' && (bankroll < bet || hands.length > 1)) {
-                let handScore = getScore(currentHand.cards);
-                correctAction = handScore >= 17 ? 'S' : 'H';
-            }
+            let hand = hands[currentHandIndex];
+            
+            // Prüfe Verfügbarkeit der Aktionen für den Strategie-Check
+            const canSurrender = hand.cards.length === 2 && hands.length === 1;
+            const canDouble = hand.cards.length === 2 && bankroll >= bet;
+            const canSplit = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value && bankroll >= bet && hands.length === 1;
+
+            let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble, canSurrender);
 
             if(action === correctAction) {
                 correctDecisions++;
@@ -309,7 +330,7 @@
             } else {
                 wrongDecisions++;
                 wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
+                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split', 'R': 'Surrender' }[correctAction];
                 showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
                 playSound('wrong');
             }
@@ -318,12 +339,13 @@
             else if (action === 'S') executeStand();
             else if (action === 'D') executeDouble();
             else if (action === 'P') executeSplit();
+            else if (action === 'R') executeSurrender();
         }
 
         function updateUI(hideDealerCard = true) {
             dealerCardsEl.innerHTML = '';
             dealerHand.forEach((card, i) => dealerCardsEl.appendChild(renderCard(card, i === 1 && hideDealerCard)));
-            dealerScoreEl.innerText = hideDealerCard ? getScore([dealerHand[0]]) : getScore(dealerHand);
+            dealerScoreEl.innerText = hideDealerCard ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score;
 
             playerHandsContainer.innerHTML = '';
             hands.forEach((hand, index) => {
@@ -336,10 +358,13 @@
                 
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = 'score-display';
-                let s = getScore(hand.cards);
-                scoreDiv.innerText = hand.bust ? 'Bust!' : s;
+                let s = getHandDetails(hand.cards).score;
                 
-                if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
+                if (hand.surrendered) scoreDiv.innerText = 'Surrendered';
+                else if (hand.bust) scoreDiv.innerText = 'Bust!';
+                else scoreDiv.innerText = s;
+                
+                if (hand.cards.length === 2 && s === 21 && hands.length === 1 && !hand.surrendered) scoreDiv.innerText = 'Blackjack!';
 
                 handDiv.appendChild(cardsDiv);
                 handDiv.appendChild(scoreDiv);
@@ -354,15 +379,15 @@
             betButtons.forEach(btn => btn.disabled = gameActive);
 
             if (!gameActive) {
-                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
                 btnDeal.disabled = false;
                 return;
             }
             btnDeal.disabled = true;
             let hand = hands[currentHandIndex];
             
-            if (hand.bust || hand.stood || getScore(hand.cards) === 21) {
-                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
+            if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
                 return;
             }
 
@@ -370,39 +395,39 @@
             btnStand.disabled = false;
             
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
+            btnSurrender.disabled = !(hand.cards.length === 2 && hands.length === 1);
             
-            let val1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
-            let val2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
-            const isPair = hand.cards.length === 2 && val1 === val2;
-            
+            // Split nur erlauben, wenn Kartenwert *exakt* gleich ist (Keine 10-K Splits)
+            const isPair = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value;
             btnSplit.disabled = !(isPair && hands.length === 1 && bankroll >= bet);
         }
 
         function startGame() {
             initAudio(); 
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
-            if (deck.length < 50) buildDeck();
+            if (deck.length < 100) buildDeck(); // Früher mischen für realistische Deck Penetration
 
             bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
-            hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
+            hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false, surrendered: false }];
             currentHandIndex = 0;
             gameActive = true;
             msgEl.innerText = "Dein Zug!";
 
-            updateUI();
-
-            if (getScore(hands[0].cards) === 21) {
+            if (getHandDetails(hands[0].cards).score === 21) {
                 hands[0].stood = true;
                 gameActive = false;
+                updateUI(false); // Dealer Karte bei direktem Blackjack aufdecken
                 determineWinner();
+            } else {
+                updateUI(true);
             }
         }
 
         function executeHit() {
             let hand = hands[currentHandIndex];
             hand.cards.push(deck.pop());
-            if (getScore(hand.cards) > 21) hand.bust = true;
+            if (getHandDetails(hand.cards).score > 21) hand.bust = true;
             advanceHand();
         }
 
@@ -416,35 +441,45 @@
             bankroll -= bet;
             hand.bet += bet;
             hand.cards.push(deck.pop());
-            if (getScore(hand.cards) > 21) hand.bust = true;
+            if (getHandDetails(hand.cards).score > 21) hand.bust = true;
             else hand.stood = true;
+            advanceHand();
+        }
+        
+        function executeSurrender() {
+            let hand = hands[currentHandIndex];
+            hand.surrendered = true;
+            bankroll += hand.bet / 2; // Halber Einsatz zurück
             advanceHand();
         }
 
         function executeSplit() {
-            let hand = hands[0];
+            let hand = hands[currentHandIndex];
             bankroll -= bet;
             let c1 = hand.cards[0];
             let c2 = hand.cards[1];
             
-            hands = [
-                { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false },
-                { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false }
-            ];
+            // Hand durch zwei neue Hände ersetzen
+            let newHand1 = { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
+            let newHand2 = { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
+            
+            hands.splice(currentHandIndex, 1, newHand1, newHand2);
             
             if (c1.value === 'A') {
-                hands[0].stood = true;
-                hands[1].stood = true;
-                updateUI(); 
+                hands[currentHandIndex].stood = true;
+                hands[currentHandIndex + 1].stood = true;
             }
             
-            advanceHand(); 
+            updateUI(); 
+            advanceHand(false); // Check, falls die neue gezogene Karte ein Blackjack/Bust ist
         }
 
-        function advanceHand() {
+        function advanceHand(incrementIndex = true) {
+            if (incrementIndex) currentHandIndex++;
+            
             while (currentHandIndex < hands.length) {
                 let hand = hands[currentHandIndex];
-                if (hand.bust || hand.stood || getScore(hand.cards) === 21) {
+                if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
                     currentHandIndex++;
                 } else {
                     break;
@@ -461,12 +496,14 @@
 
         function playDealer() {
             updateUI(false);
-            let allBust = hands.every(h => h.bust);
-            if (!allBust) {
-                let dScore = getScore(dealerHand);
+            let allHandsFinished = hands.every(h => h.bust || h.surrendered || (h.cards.length === 2 && getHandDetails(h.cards).score === 21 && hands.length === 1));
+            
+            if (!allHandsFinished) {
+                let dScore = getHandDetails(dealerHand).score;
+                // Soft 17 Regel (S17 - Stands on all 17s). Für H17 hier anpassen.
                 while (dScore < 17) {
                     dealerHand.push(deck.pop());
-                    dScore = getScore(dealerHand);
+                    dScore = getHandDetails(dealerHand).score;
                 }
             }
             updateUI(false);
@@ -474,15 +511,17 @@
         }
 
         function determineWinner() {
-            let dScore = getScore(dealerHand);
+            let dScore = getHandDetails(dealerHand).score;
             let dBust = dScore > 21;
             let resultTexts = [];
 
             hands.forEach((hand, idx) => {
-                let pScore = getScore(hand.cards);
+                let pScore = getHandDetails(hand.cards).score;
                 let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
 
-                if (hand.bust) {
+                if (hand.surrendered) {
+                    resultTexts.push(label + "Surrender (1/2 Einsatz zurück)");
+                } else if (hand.bust) {
                     resultTexts.push(label + "Bust (-)");
                 } else if (dBust) {
                     resultTexts.push(label + "Dealer Bust (+)");
@@ -519,6 +558,7 @@
         btnStand.addEventListener('click', () => handlePlayerAction('S'));
         btnDouble.addEventListener('click', () => handlePlayerAction('D'));
         btnSplit.addEventListener('click', () => handlePlayerAction('P'));
+        btnSurrender.addEventListener('click', () => handlePlayerAction('R'));
 
         buildDeck();
     </script>
