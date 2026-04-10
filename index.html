@@ -16,7 +16,7 @@
         h1 { color: #d4af37; margin-bottom: 5px; font-size: 1.5rem; }
         
         .stats-bar {
-            display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;
+            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;
         }
         .stat-box {
             background: #222; padding: 8px 15px; border-radius: 5px; border: 1px solid #d4af37;
@@ -25,6 +25,12 @@
         .correct-score { color: #2ecc71; }
         .wrong-score { color: #e74c3c; }
         
+        #btn-toggle-scores {
+            background: #444; color: #d4af37; border: 1px solid #d4af37;
+            padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;
+        }
+        #btn-toggle-scores.off { background: #8e44ad; color: white; border-color: white; }
+
         .bet-controls { margin-bottom: 20px; }
         .bet-btn {
             background: #333; color: white; border: 1px solid #d4af37; 
@@ -87,6 +93,7 @@
         <div class="stat-box" id="bet-display">Einsatz: 1 €</div>
         <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
         <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
+        <button id="btn-toggle-scores">Werte: AN</button>
     </div>
 
     <div class="bet-controls" id="bet-controls">
@@ -121,6 +128,7 @@
         let bet = 1;
         let correctDecisions = 0;
         let wrongDecisions = 0;
+        let showScores = true;
         
         let deck = [];
         let dealerHand = [];
@@ -142,6 +150,7 @@
         const playerHandsContainer = document.getElementById('player-hands-container');
         const toastEl = document.getElementById('feedback-toast');
         const betButtons = document.querySelectorAll('.bet-btn');
+        const btnToggleScores = document.getElementById('btn-toggle-scores');
         
         const btnDeal = document.getElementById('btn-deal');
         const btnHit = document.getElementById('btn-hit');
@@ -181,6 +190,13 @@
                 osc.stop(audioCtx.currentTime + 0.25);
             }
         }
+
+        btnToggleScores.addEventListener('click', () => {
+            showScores = !showScores;
+            btnToggleScores.innerText = `Werte: ${showScores ? 'AN' : 'AUS'}`;
+            btnToggleScores.classList.toggle('off', !showScores);
+            updateUI(!gameActive ? false : true); // Re-render dealer card state
+        });
 
         betButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -284,8 +300,6 @@
             let hand = hands[currentHandIndex];
             
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
-            
-            // Jede beliebige 10-Wert-Karten Kombination als splittbar erkennen
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length === 1;
@@ -314,7 +328,12 @@
         function updateUI(hideDealerCard = true) {
             dealerCardsEl.innerHTML = '';
             dealerHand.forEach((card, i) => dealerCardsEl.appendChild(renderCard(card, i === 1 && hideDealerCard)));
-            dealerScoreEl.innerText = hideDealerCard ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score;
+            
+            if (showScores) {
+                dealerScoreEl.innerText = hideDealerCard ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score;
+            } else {
+                dealerScoreEl.innerText = "";
+            }
 
             playerHandsContainer.innerHTML = '';
             hands.forEach((hand, index) => {
@@ -328,9 +347,10 @@
                 let s = getHandDetails(hand.cards).score;
                 
                 if (hand.bust) scoreDiv.innerText = 'Bust!';
-                else scoreDiv.innerText = s;
-                
-                if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
+                else if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
+                else {
+                    scoreDiv.innerText = showScores ? s : "";
+                }
                 
                 handDiv.appendChild(cardsDiv);
                 handDiv.appendChild(scoreDiv);
@@ -359,7 +379,6 @@
             btnStand.disabled = false;
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
             
-            // Jede Kombination aus 10ern, Buben, Damen oder Königen aktiviert den Split Button
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
             const isPair = hand.cards.length === 2 && v1 === v2;
