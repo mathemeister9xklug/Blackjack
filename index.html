@@ -77,7 +77,6 @@
         #btn-stand:not(:disabled) { background-color: #c0392b; }
         #btn-double:not(:disabled) { background-color: #e67e22; }
         #btn-split:not(:disabled) { background-color: #8e44ad; }
-        #btn-surrender:not(:disabled) { background-color: #7f8c8d; }
     </style>
 </head>
 <body>
@@ -114,7 +113,6 @@
             <button id="btn-stand" disabled>Stand</button>
             <button id="btn-double" disabled>Double</button>
             <button id="btn-split" disabled>Split</button>
-            <button id="btn-surrender" disabled>Surrender</button>
         </div>
     </div>
 
@@ -150,7 +148,6 @@
         const btnStand = document.getElementById('btn-stand');
         const btnDouble = document.getElementById('btn-double');
         const btnSplit = document.getElementById('btn-split');
-        const btnSurrender = document.getElementById('btn-surrender');
 
         let audioCtx;
         function initAudio() {
@@ -244,14 +241,9 @@
             toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2000);
         }
 
-        function getCorrectMove(handCards, dealerCard, canSplit, canDouble, canSurrender) {
+        function getCorrectMove(handCards, dealerCard, canSplit, canDouble) {
             const { score: pScore, isSoft } = getHandDetails(handCards);
             const dVal = ['J','Q','K'].includes(dealerCard.value) ? 10 : (dealerCard.value === 'A' ? 11 : parseInt(dealerCard.value));
-            
-            if (canSurrender) {
-                if (pScore === 16 && [9, 10, 11].includes(dVal)) return 'R';
-                if (pScore === 15 && dVal === 10) return 'R';
-            }
 
             if (canSplit) {
                 let v = handCards[0].value;
@@ -291,11 +283,14 @@
             if (!gameActive) return;
             let hand = hands[currentHandIndex];
             
-            const canSurrender = hand.cards.length === 2 && hands.length === 1;
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
-            const canSplit = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value && bankroll >= bet && hands.length === 1;
+            
+            // Jede beliebige 10-Wert-Karten Kombination als splittbar erkennen
+            let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
+            let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
+            const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length === 1;
 
-            let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble, canSurrender);
+            let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
 
             if(action === correctAction) {
                 correctDecisions++;
@@ -305,7 +300,7 @@
             } else {
                 wrongDecisions++;
                 wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split', 'R': 'Surrender' }[correctAction];
+                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
                 showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
                 playSound('wrong');
             }
@@ -314,7 +309,6 @@
             else if (action === 'S') executeStand();
             else if (action === 'D') executeDouble();
             else if (action === 'P') executeSplit();
-            else if (action === 'R') executeSurrender();
         }
 
         function updateUI(hideDealerCard = true) {
@@ -332,10 +326,12 @@
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = 'score-display';
                 let s = getHandDetails(hand.cards).score;
-                if (hand.surrendered) scoreDiv.innerText = 'Surrendered';
-                else if (hand.bust) scoreDiv.innerText = 'Bust!';
+                
+                if (hand.bust) scoreDiv.innerText = 'Bust!';
                 else scoreDiv.innerText = s;
-                if (hand.cards.length === 2 && s === 21 && hands.length === 1 && !hand.surrendered) scoreDiv.innerText = 'Blackjack!';
+                
+                if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
+                
                 handDiv.appendChild(cardsDiv);
                 handDiv.appendChild(scoreDiv);
                 playerHandsContainer.appendChild(handDiv);
@@ -347,21 +343,26 @@
         function updateButtons() {
             betButtons.forEach(btn => btn.disabled = gameActive);
             if (!gameActive) {
-                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
                 btnDeal.disabled = false;
                 return;
             }
             btnDeal.disabled = true;
             let hand = hands[currentHandIndex];
-            if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
-                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = btnSurrender.disabled = true;
+            
+            if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) {
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
                 return;
             }
+            
             btnHit.disabled = false;
             btnStand.disabled = false;
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
-            btnSurrender.disabled = !(hand.cards.length === 2 && hands.length === 1);
-            const isPair = hand.cards.length === 2 && hand.cards[0].value === hand.cards[1].value;
+            
+            // Jede Kombination aus 10ern, Buben, Damen oder Königen aktiviert den Split Button
+            let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
+            let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
+            const isPair = hand.cards.length === 2 && v1 === v2;
             btnSplit.disabled = !(isPair && hands.length === 1 && bankroll >= bet);
         }
 
@@ -371,10 +372,11 @@
             if (deck.length < 100) buildDeck();
             bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
-            hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false, surrendered: false }];
+            hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
             currentHandIndex = 0;
             gameActive = true;
             msgEl.innerText = "Dein Zug!";
+            
             if (getHandDetails(hands[0].cards).score === 21) {
                 hands[0].stood = true;
                 gameActive = false;
@@ -387,7 +389,7 @@
             let hand = hands[currentHandIndex];
             hand.cards.push(deck.pop());
             if (getHandDetails(hand.cards).score > 21) hand.bust = true;
-            advanceHand(false); // <--- FIX: Hier wird NICHT automatisch index++ gemacht
+            advanceHand(false);
         }
 
         function executeStand() {
@@ -404,26 +406,22 @@
             else hand.stood = true;
             advanceHand(true);
         }
-        
-        function executeSurrender() {
-            let hand = hands[currentHandIndex];
-            hand.surrendered = true;
-            bankroll += hand.bet / 2;
-            advanceHand(true);
-        }
 
         function executeSplit() {
             let hand = hands[currentHandIndex];
             bankroll -= bet;
             let c1 = hand.cards[0];
             let c2 = hand.cards[1];
-            let newHand1 = { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
-            let newHand2 = { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false, surrendered: false };
+            
+            let newHand1 = { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false };
+            let newHand2 = { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false };
             hands.splice(currentHandIndex, 1, newHand1, newHand2);
+            
             if (c1.value === 'A') {
                 hands[currentHandIndex].stood = true;
                 hands[currentHandIndex + 1].stood = true;
             }
+            
             updateUI(); 
             advanceHand(false); 
         }
@@ -432,7 +430,7 @@
             if (incrementIndex) currentHandIndex++;
             while (currentHandIndex < hands.length) {
                 let hand = hands[currentHandIndex];
-                if (hand.bust || hand.stood || hand.surrendered || getHandDetails(hand.cards).score === 21) {
+                if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) {
                     currentHandIndex++;
                 } else { break; }
             }
@@ -444,7 +442,8 @@
 
         function playDealer() {
             updateUI(false);
-            let allHandsFinished = hands.every(h => h.bust || h.surrendered || (h.cards.length === 2 && getHandDetails(h.cards).score === 21 && hands.length === 1));
+            let allHandsFinished = hands.every(h => h.bust || (h.cards.length === 2 && getHandDetails(h.cards).score === 21 && hands.length === 1));
+            
             if (!allHandsFinished) {
                 let dScore = getHandDetails(dealerHand).score;
                 while (dScore < 17) {
@@ -460,11 +459,12 @@
             let dScore = getHandDetails(dealerHand).score;
             let dBust = dScore > 21;
             let resultTexts = [];
+            
             hands.forEach((hand, idx) => {
                 let pScore = getHandDetails(hand.cards).score;
                 let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
-                if (hand.surrendered) resultTexts.push(label + "Surrender (1/2 zurück)");
-                else if (hand.bust) resultTexts.push(label + "Bust (-)");
+                
+                if (hand.bust) resultTexts.push(label + "Bust (-)");
                 else if (dBust) { resultTexts.push(label + "Dealer Bust (+)"); bankroll += hand.bet * 2; }
                 else if (pScore > dScore) {
                     if (pScore === 21 && hand.cards.length === 2 && hands.length === 1) {
@@ -474,6 +474,7 @@
                 } else if (pScore < dScore) resultTexts.push(label + "Verloren (-)");
                 else { resultTexts.push(label + "Push (=)"); bankroll += hand.bet; }
             });
+            
             msgEl.innerHTML = resultTexts.join('<br>');
             bankrollEl.innerText = `Bankroll: ${bankroll} €`;
             updateButtons();
@@ -484,7 +485,6 @@
         btnStand.addEventListener('click', () => handlePlayerAction('S'));
         btnDouble.addEventListener('click', () => handlePlayerAction('D'));
         btnSplit.addEventListener('click', () => handlePlayerAction('P'));
-        btnSurrender.addEventListener('click', () => handlePlayerAction('R'));
 
         buildDeck();
     </script>
