@@ -25,11 +25,12 @@
         .correct-score { color: #2ecc71; }
         .wrong-score { color: #e74c3c; }
         
-        #btn-toggle-scores {
+        #btn-toggle-scores, #btn-toggle-feedback {
             background: #444; color: #d4af37; border: 1px solid #d4af37;
-            padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;
+            padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;
         }
         #btn-toggle-scores.off { background: #8e44ad; color: white; border-color: white; }
+        #btn-toggle-feedback.off { background: #e67e22; color: white; border-color: white; }
 
         .bet-controls { margin-bottom: 20px; }
         .bet-btn {
@@ -94,6 +95,7 @@
         <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
         <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
         <button id="btn-toggle-scores">Werte: AN</button>
+        <button id="btn-toggle-feedback">Feedback: SOFORT</button>
     </div>
 
     <div class="bet-controls" id="bet-controls">
@@ -128,7 +130,11 @@
         let bet = 1;
         let correctDecisions = 0;
         let wrongDecisions = 0;
+        
         let showScores = true;
+        let delayFeedback = false;
+        let roundCorrect = 0;
+        let roundTotal = 0;
         
         let deck = [];
         let dealerHand = [];
@@ -150,7 +156,9 @@
         const playerHandsContainer = document.getElementById('player-hands-container');
         const toastEl = document.getElementById('feedback-toast');
         const betButtons = document.querySelectorAll('.bet-btn');
+        
         const btnToggleScores = document.getElementById('btn-toggle-scores');
+        const btnToggleFeedback = document.getElementById('btn-toggle-feedback');
         
         const btnDeal = document.getElementById('btn-deal');
         const btnHit = document.getElementById('btn-hit');
@@ -195,7 +203,13 @@
             showScores = !showScores;
             btnToggleScores.innerText = `Werte: ${showScores ? 'AN' : 'AUS'}`;
             btnToggleScores.classList.toggle('off', !showScores);
-            updateUI(!gameActive ? false : true); // Re-render dealer card state
+            updateUI(!gameActive ? false : true); 
+        });
+
+        btnToggleFeedback.addEventListener('click', () => {
+            delayFeedback = !delayFeedback;
+            btnToggleFeedback.innerText = `Feedback: ${delayFeedback ? 'ENDE' : 'SOFORT'}`;
+            btnToggleFeedback.classList.toggle('off', delayFeedback);
         });
 
         betButtons.forEach(btn => {
@@ -254,7 +268,7 @@
             clearTimeout(toastTimeout);
             toastEl.innerText = text;
             toastEl.className = type;
-            toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2000);
+            toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2500); // Etwas länger anzeigen
         }
 
         function getCorrectMove(handCards, dealerCard, canSplit, canDouble) {
@@ -305,18 +319,29 @@
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length === 1;
 
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
+            let isCorrect = (action === correctAction);
 
-            if(action === correctAction) {
+            roundTotal++;
+
+            if (isCorrect) {
                 correctDecisions++;
-                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
-                showFeedback("Richtig!", "green");
-                playSound('correct');
+                roundCorrect++;
             } else {
                 wrongDecisions++;
+            }
+
+            if (!delayFeedback) {
+                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
                 wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
-                showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
-                playSound('wrong');
+                
+                if (isCorrect) {
+                    showFeedback("Richtig!", "green");
+                    playSound('correct');
+                } else {
+                    let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
+                    showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
+                    playSound('wrong');
+                }
             }
 
             if (action === 'H') executeHit();
@@ -389,6 +414,11 @@
             initAudio(); 
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
             if (deck.length < 100) buildDeck();
+            
+            // Runden-Tracker zurücksetzen
+            roundCorrect = 0;
+            roundTotal = 0;
+
             bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
@@ -477,25 +507,56 @@
         function determineWinner() {
             let dScore = getHandDetails(dealerHand).score;
             let dBust = dScore > 21;
+            let dBlackjack = dScore === 21 && dealerHand.length === 2;
             let resultTexts = [];
             
             hands.forEach((hand, idx) => {
                 let pScore = getHandDetails(hand.cards).score;
+                let pBlackjack = pScore === 21 && hand.cards.length === 2 && hands.length === 1;
                 let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
                 
-                if (hand.bust) resultTexts.push(label + "Bust (-)");
-                else if (dBust) { resultTexts.push(label + "Dealer Bust (+)"); bankroll += hand.bet * 2; }
-                else if (pScore > dScore) {
-                    if (pScore === 21 && hand.cards.length === 2 && hands.length === 1) {
-                        if (dScore === 21 && dealerHand.length === 2) { resultTexts.push(label + "Push (BJ)"); bankroll += hand.bet; }
-                        else { resultTexts.push(label + "Blackjack (+1.5)"); bankroll += hand.bet + (hand.bet * 1.5); }
-                    } else { resultTexts.push(label + "Gewonnen (+)"); bankroll += hand.bet * 2; }
-                } else if (pScore < dScore) resultTexts.push(label + "Verloren (-)");
-                else { resultTexts.push(label + "Push (=)"); bankroll += hand.bet; }
+                if (hand.bust) {
+                    resultTexts.push(label + "Bust (-)");
+                } else if (dBust) {
+                    resultTexts.push(label + "Dealer Bust (+)");
+                    bankroll += hand.bet * 2;
+                } else if (pBlackjack && !dBlackjack) {
+                    resultTexts.push(label + "Blackjack (+1.5)");
+                    bankroll += hand.bet + (hand.bet * 1.5);
+                } else if (!pBlackjack && dBlackjack) {
+                    resultTexts.push(label + "Verloren (Dealer BJ)");
+                } else if (pBlackjack && dBlackjack) {
+                    resultTexts.push(label + "Push (Beide BJ)");
+                    bankroll += hand.bet;
+                } else if (pScore > dScore) {
+                    resultTexts.push(label + "Gewonnen (+)");
+                    bankroll += hand.bet * 2;
+                } else if (pScore < dScore) {
+                    resultTexts.push(label + "Verloren (-)");
+                } else {
+                    resultTexts.push(label + "Push (=)");
+                    bankroll += hand.bet;
+                }
             });
             
             msgEl.innerHTML = resultTexts.join('<br>');
             bankrollEl.innerText = `Bankroll: ${bankroll} €`;
+
+            // Zeige das kumulierte Feedback an, falls der Modus aktiv ist und Entscheidungen getroffen wurden
+            if (delayFeedback && roundTotal > 0) {
+                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
+                wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
+
+                let type = roundCorrect === roundTotal ? "green" : "red";
+                showFeedback(`Entscheidungen: ${roundCorrect}/${roundTotal} richtig`, type);
+                
+                if (roundCorrect === roundTotal) {
+                    playSound('correct');
+                } else {
+                    playSound('wrong');
+                }
+            }
+
             updateButtons();
         }
 
