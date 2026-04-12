@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blackjack Pro Trainer - Strategy Counter</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,6 +45,12 @@
 
         .board { max-width: 650px; margin: 0 auto; background: rgba(0,0,0,0.4); padding: 20px; border-radius: 10px; border: 2px solid #145a2b; position: relative; }
         
+        .chart-wrapper {
+            max-width: 650px; margin: 20px auto 0; background: rgba(0,0,0,0.4); 
+            padding: 15px; border-radius: 10px; border: 2px solid #145a2b;
+            height: 250px; position: relative;
+        }
+
         #feedback-toast {
             position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
             padding: 8px 15px; border-radius: 20px; font-weight: bold; opacity: 0;
@@ -51,6 +58,7 @@
         }
         #feedback-toast.green { background: #27ae60; color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         #feedback-toast.red { background: #c0392b; color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #feedback-toast.blue { background: #2980b9; color: white; opacity: 1; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
 
         .area-title { font-weight: bold; margin-bottom: 5px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8rem;}
         
@@ -125,6 +133,10 @@
         </div>
     </div>
 
+    <div class="chart-wrapper">
+        <canvas id="bankrollChart"></canvas>
+    </div>
+
     <script>
         let bankroll = 50;
         let bet = 1;
@@ -143,8 +155,15 @@
         let gameActive = false;
         let toastTimeout;
 
+        // --- Chart Daten ---
+        let bankrollHistory = [50];
+        let roundLabels = [0];
+        let totalRoundsPlayed = 0;
+        let bankrollChart;
+
         const suits = ['♠', '♥', '♦', '♣'];
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const NUM_DECKS = 6;
 
         const bankrollEl = document.getElementById('bankroll-display');
         const betDisplayEl = document.getElementById('bet-display');
@@ -165,6 +184,47 @@
         const btnStand = document.getElementById('btn-stand');
         const btnDouble = document.getElementById('btn-double');
         const btnSplit = document.getElementById('btn-split');
+
+        // Initialisiere Graph
+        function initChart() {
+            const ctx = document.getElementById('bankrollChart').getContext('2d');
+            Chart.defaults.color = '#aaa';
+            bankrollChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: roundLabels,
+                    datasets: [{
+                        label: 'Bankroll (€)',
+                        data: bankrollHistory,
+                        borderColor: '#d4af37',
+                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#d4af37'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { display: true, title: { display: true, text: 'Gespielte Runden' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        y: { display: true, title: { display: true, text: 'Guthaben (€)' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                    },
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            totalRoundsPlayed++;
+            roundLabels.push(totalRoundsPlayed);
+            bankrollHistory.push(bankroll);
+            bankrollChart.update();
+        }
 
         let audioCtx;
         function initAudio() {
@@ -188,7 +248,7 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
                 osc.start(audioCtx.currentTime);
                 osc.stop(audioCtx.currentTime + 0.3);
-            } else {
+            } else if (type === 'wrong') {
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(200, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
@@ -196,6 +256,15 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
                 osc.start(audioCtx.currentTime);
                 osc.stop(audioCtx.currentTime + 0.25);
+            } else if (type === 'shuffle') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.2);
             }
         }
 
@@ -224,7 +293,7 @@
 
         function buildDeck() {
             deck = [];
-            for (let d = 0; d < 6; d++) {
+            for (let d = 0; d < NUM_DECKS; d++) {
                 for (let suit of suits) {
                     for (let value of values) {
                         deck.push({ suit, value });
@@ -268,7 +337,7 @@
             clearTimeout(toastTimeout);
             toastEl.innerText = text;
             toastEl.className = type;
-            toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2500); // Etwas länger anzeigen
+            toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2500);
         }
 
         function getCorrectMove(handCards, dealerCard, canSplit, canDouble) {
@@ -413,9 +482,18 @@
         function startGame() {
             initAudio(); 
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
-            if (deck.length < 100) buildDeck();
             
-            // Runden-Tracker zurücksetzen
+            let totalCards = NUM_DECKS * 52;
+            // Mischkarte: Sobald 1/3 der Karten ausgeteilt wurden (es sind also weniger als 2/3, sprich 208 Karten, im Deck)
+            // Hinweis: Falls du meintest "Wenn nur noch 1/3 der Karten ÜBRIG ist", ändere die (2/3) zu (1/3).
+            let shuffleThreshold = totalCards * (2/3); 
+
+            if (deck.length < shuffleThreshold || deck.length === 0) {
+                buildDeck();
+                showFeedback("Mischkarte erreicht! Schuh neu gemischt.", "blue");
+                playSound('shuffle');
+            }
+            
             roundCorrect = 0;
             roundTotal = 0;
 
@@ -542,7 +620,6 @@
             msgEl.innerHTML = resultTexts.join('<br>');
             bankrollEl.innerText = `Bankroll: ${bankroll} €`;
 
-            // Zeige das kumulierte Feedback an, falls der Modus aktiv ist und Entscheidungen getroffen wurden
             if (delayFeedback && roundTotal > 0) {
                 correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
                 wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
@@ -558,15 +635,18 @@
             }
 
             updateButtons();
+            updateChart(); // Bankroll am Ende der Runde dem Graph hinzufügen
         }
 
+        initChart(); // Graph beim Start initialisieren
+        buildDeck();
+        
+        // Listener
         btnDeal.addEventListener('click', startGame);
         btnHit.addEventListener('click', () => handlePlayerAction('H'));
         btnStand.addEventListener('click', () => handlePlayerAction('S'));
         btnDouble.addEventListener('click', () => handlePlayerAction('D'));
         btnSplit.addEventListener('click', () => handlePlayerAction('P'));
-
-        buildDeck();
     </script>
 </body>
 </html>
