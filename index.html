@@ -201,8 +201,8 @@
                         borderWidth: 2,
                         fill: true,
                         tension: 0.1,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#d4af37'
+                        pointRadius: 0, // Minimalistisch: Keine Punkte
+                        pointHoverRadius: 4 // Punkt erscheint nur, wenn du mit der Maus drüberfährst
                     }]
                 },
                 options: {
@@ -385,7 +385,9 @@
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
-            const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length === 1;
+            
+            // Casino Standard: Max. 4 Hände (also 3 Splits)
+            const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length < 4;
 
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
             let isCorrect = (action === correctAction);
@@ -476,7 +478,9 @@
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
             const isPair = hand.cards.length === 2 && v1 === v2;
-            btnSplit.disabled = !(isPair && hands.length === 1 && bankroll >= bet);
+            
+            // Casino Standard: Max. 4 Hände gleichzeitig
+            btnSplit.disabled = !(isPair && hands.length < 4 && bankroll >= bet);
         }
 
         function startGame() {
@@ -484,9 +488,8 @@
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
             
             let totalCards = NUM_DECKS * 52;
-            // Mischkarte: Sobald 1/3 der Karten ausgeteilt wurden (es sind also weniger als 2/3, sprich 208 Karten, im Deck)
-            // Hinweis: Falls du meintest "Wenn nur noch 1/3 der Karten ÜBRIG ist", ändere die (2/3) zu (1/3).
-            let shuffleThreshold = totalCards * (2/3); 
+            // Casino Penetration: ~75%. Es wird erst gemischt, wenn nur noch 25% der Karten (ca. 1.5 Decks) im Schlitten sind.
+            let shuffleThreshold = totalCards * 0.25; 
 
             if (deck.length < shuffleThreshold || deck.length === 0) {
                 buildDeck();
@@ -635,10 +638,10 @@
             }
 
             updateButtons();
-            updateChart(); // Bankroll am Ende der Runde dem Graph hinzufügen
+            updateChart();
         }
 
-        initChart(); // Graph beim Start initialisieren
+        initChart(); 
         buildDeck();
         
         // Listener
