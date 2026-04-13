@@ -38,12 +38,46 @@
         #btn-save-score { background: #27ae60; color: white; border-color: #2ecc71; }
         #btn-show-leaderboard { background: #2980b9; color: white; border-color: #3498db; }
 
-        .bet-controls { margin-bottom: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+        /* NEUES LAYOUT: Main Container für Sidebar und Board */
+        .main-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto 20px auto;
+        }
+
+        .sidebar-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(0,0,0,0.4);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #145a2b;
+            min-width: 120px;
+        }
+
+        .game-center {
+            flex-grow: 1;
+            max-width: 650px;
+            width: 100%;
+        }
+
+        /* Responsive: Auf kleinen Screens Sidebar nach oben/waagerecht */
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; align-items: center; }
+            .sidebar-left { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 100%; box-sizing: border-box; }
+        }
+
         .bet-btn {
             background: #333; color: white; border: 1px solid #d4af37; 
-            padding: 6px 15px; cursor: pointer; 
+            padding: 8px 15px; cursor: pointer; 
             border-radius: 4px; font-size: 1rem; font-weight: bold; transition: 0.2s;
+            width: 100%; box-sizing: border-box;
         }
+        @media (max-width: 768px) { .bet-btn { width: auto; } }
         .bet-btn:hover:not(:disabled) { background: #555; }
         .bet-btn.active { background: #d4af37; color: black; }
         .bet-btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #666; }
@@ -53,28 +87,47 @@
         }
         .custom-input-group label { font-size: 0.8rem; color: #aaa; }
         .custom-input-group input { 
-            width: 60px; background: #111; color: #d4af37; border: 1px solid #d4af37; padding: 4px; border-radius: 3px; font-weight: bold;
+            width: 60px; background: #111; color: #d4af37; border: 1px solid #d4af37; padding: 4px; border-radius: 3px; font-weight: bold; text-align: center;
         }
 
+        .custom-bet-stack {
+            flex-direction: column; align-items: stretch; padding: 10px; margin-top: 5px;
+        }
+        .custom-bet-stack input { width: auto; margin: 5px 0; }
+
         .board { 
-            max-width: 650px; margin: 0 auto; background: rgba(0,0,0,0.4); padding: 20px; 
+            background: rgba(0,0,0,0.4); padding: 20px; 
             border-radius: 10px; border: 2px solid #145a2b; position: relative; 
             transition: background-color 0.2s, border-color 0.2s;
+            overflow: hidden; /* Für die Animation wichtig */
         }
         
+        /* Animation: Falscher Move (Rot) */
         @keyframes flashWrong {
             0% { background-color: rgba(0,0,0,0.4); border-color: #145a2b; }
             50% { background-color: rgba(192, 57, 43, 0.6); border-color: #ff4d4d; box-shadow: 0 0 20px #ff4d4d; }
             100% { background-color: rgba(0,0,0,0.4); border-color: #145a2b; }
         }
-        .flash-error {
-            animation: flashWrong 0.5s ease-out;
+        .flash-error { animation: flashWrong 0.5s ease-out; }
+
+        /* Animation: Gewonnen (Gold Text in der Mitte) */
+        @keyframes floatUpFade {
+            0% { opacity: 0; transform: translate(-50%, 20px) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, 0px) scale(1.2); }
+            80% { opacity: 1; transform: translate(-50%, -15px) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -30px) scale(0.9); }
         }
+        .win-anim {
+            position: absolute; top: 40%; left: 50%;
+            color: #f1c40f; font-size: 3.5rem; font-weight: bold; 
+            text-shadow: 0px 0px 20px rgba(212, 175, 55, 1), 2px 2px 5px rgba(0,0,0,0.8);
+            pointer-events: none; opacity: 0; z-index: 100; transform: translateX(-50%);
+        }
+        .win-anim.show { animation: floatUpFade 2s ease-out forwards; }
         
         .chart-wrapper {
-            max-width: 650px; margin: 20px auto 0; background: rgba(0,0,0,0.4); 
-            padding: 15px; border-radius: 10px; border: 2px solid #145a2b;
-            height: 250px; position: relative;
+            background: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px; border: 2px solid #145a2b;
+            height: 250px; position: relative; margin-top: 20px;
         }
 
         #feedback-toast {
@@ -145,16 +198,14 @@
 <body>
 
     <h1>Blackjack Pro Trainer</h1>
+    
     <div class="stats-bar">
         <div class="stat-box" id="bankroll-display">Bankroll: 50 €</div>
-        
         <div class="custom-input-group">
             <label>Start-Guthaben:</label>
             <input type="number" id="input-start-bankroll" value="50" min="1">
             <button class="action-btn" id="btn-set-bankroll" style="padding: 2px 8px; font-size: 0.7rem;">Set</button>
         </div>
-
-        <div class="stat-box" id="bet-display">Einsatz: 1 €</div>
         <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
         <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
     </div>
@@ -166,43 +217,51 @@
         <button class="action-btn" id="btn-show-leaderboard">🏆 Rangliste</button>
     </div>
 
-    <div class="bet-controls" id="bet-controls">
-        <button class="bet-btn active" data-bet="1">1 €</button>
-        <button class="bet-btn" data-bet="2">2 €</button>
-        <button class="bet-btn" data-bet="4">4 €</button>
-        <button class="bet-btn" data-bet="8">8 €</button>
-        <button class="bet-btn" data-bet="16">16 €</button>
+    <div class="main-container">
         
-        <div class="custom-input-group">
-            <label>Eigener Einsatz:</label>
-            <input type="number" id="input-custom-bet" value="10" min="1">
-            <button class="bet-btn" id="btn-apply-custom-bet" style="padding: 4px 10px; font-size: 0.8rem;">Set</button>
+        <div class="sidebar-left" id="bet-controls">
+            <div class="area-title" style="margin-bottom: 5px; text-align: center;">Einsatz wählen</div>
+            <div class="stat-box" id="bet-display" style="font-size: 1rem; padding: 5px; margin-bottom: 10px; text-align:center;">Bet: 1 €</div>
+            
+            <button class="bet-btn active" data-bet="1">1 €</button>
+            <button class="bet-btn" data-bet="2">2 €</button>
+            <button class="bet-btn" data-bet="4">4 €</button>
+            <button class="bet-btn" data-bet="8">8 €</button>
+            <button class="bet-btn" data-bet="16">16 €</button>
+            
+            <div class="custom-input-group custom-bet-stack">
+                <label style="text-align: center;">Eigener Einsatz:</label>
+                <input type="number" id="input-custom-bet" value="10" min="1">
+                <button class="bet-btn" id="btn-apply-custom-bet" style="padding: 6px; font-size: 0.85rem;">Setzen</button>
+            </div>
         </div>
-    </div>
 
-    <div class="board" id="game-board">
-        <div id="feedback-toast"></div>
+        <div class="game-center">
+            <div class="board" id="game-board">
+                <div id="feedback-toast"></div>
+                <div id="win-animation" class="win-anim"></div> <div class="area-title">Dealer</div>
+                <div class="cards" id="dealer-cards"></div>
+                <div class="score-display" id="dealer-score"></div>
 
-        <div class="area-title">Dealer</div>
-        <div class="cards" id="dealer-cards"></div>
-        <div class="score-display" id="dealer-score"></div>
+                <div id="message">Wähle deinen Einsatz und klicke auf Deal!</div>
 
-        <div id="message">Wähle deinen Einsatz und klicke auf Deal!</div>
+                <div class="area-title">Deine Hand / Hände</div>
+                <div class="player-hands-container" id="player-hands-container"></div>
 
-        <div class="area-title">Deine Hand / Hände</div>
-        <div class="player-hands-container" id="player-hands-container"></div>
+                <div class="controls">
+                    <button id="btn-deal">Deal</button>
+                    <button id="btn-hit" disabled>Hit</button>
+                    <button id="btn-stand" disabled>Stand</button>
+                    <button id="btn-double" disabled>Double</button>
+                    <button id="btn-split" disabled>Split</button>
+                </div>
+            </div>
 
-        <div class="controls">
-            <button id="btn-deal">Deal</button>
-            <button id="btn-hit" disabled>Hit</button>
-            <button id="btn-stand" disabled>Stand</button>
-            <button id="btn-double" disabled>Double</button>
-            <button id="btn-split" disabled>Split</button>
+            <div class="chart-wrapper">
+                <canvas id="bankrollChart"></canvas>
+            </div>
         </div>
-    </div>
-
-    <div class="chart-wrapper">
-        <canvas id="bankrollChart"></canvas>
+        
     </div>
 
     <div class="modal-overlay" id="leaderboard-modal">
@@ -261,6 +320,7 @@
         const dealerScoreEl = document.getElementById('dealer-score');
         const playerHandsContainer = document.getElementById('player-hands-container');
         const toastEl = document.getElementById('feedback-toast');
+        const winAnimEl = document.getElementById('win-animation');
         const betButtons = document.querySelectorAll('.bet-btn:not(#btn-apply-custom-bet)');
         const boardEl = document.getElementById('game-board');
         
@@ -307,7 +367,7 @@
             if (isNaN(val) || val <= 0) return;
             bet = val;
             betButtons.forEach(b => b.classList.remove('active'));
-            betDisplayEl.innerText = `Einsatz: ${bet} €`;
+            betDisplayEl.innerText = `Bet: ${bet} €`;
             showFeedback(`Einsatz auf ${val} € gesetzt`, "blue");
         });
 
@@ -357,7 +417,7 @@
                     options: { 
                         responsive: true, 
                         maintainAspectRatio: false, 
-                        plugins: { legend: { display: false } }, // Legende deaktiviert
+                        plugins: { legend: { display: false } },
                         scales: { x: { grid: { color: 'rgba(255,255,255,0.1)' } }, y: { grid: { color: 'rgba(255,255,255,0.1)' } } } 
                     }
                 });
@@ -374,8 +434,15 @@
 
         function triggerWrongAnimation() {
             boardEl.classList.remove('flash-error');
-            void boardEl.offsetWidth; // Reflow erzwingen
+            void boardEl.offsetWidth; 
             boardEl.classList.add('flash-error');
+        }
+
+        function showWinAnimation(amount) {
+            winAnimEl.innerText = `+ ${amount} €`;
+            winAnimEl.classList.remove('show');
+            void winAnimEl.offsetWidth; 
+            winAnimEl.classList.add('show');
         }
 
         btnToggleScores.addEventListener('click', () => {
@@ -394,7 +461,7 @@
                 bet = parseInt(e.target.getAttribute('data-bet'));
                 betButtons.forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
-                betDisplayEl.innerText = `Einsatz: ${bet} €`;
+                betDisplayEl.innerText = `Bet: ${bet} €`;
             });
         });
 
@@ -455,8 +522,9 @@
             let hand = hands[currentHandIndex];
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
-            let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
+            let v2 = hand.cards.length >= 2 ? (['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value) : null;
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length < 4;
+            
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
             let isCorrect = (action === correctAction);
             roundTotal++; 
@@ -496,9 +564,11 @@
             if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) { btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true; return; }
             btnHit.disabled = false; btnStand.disabled = false;
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
+            
+            // FIX: Split darf nur möglich sein, wenn man exakt 2 Karten hat.
             let v1 = ['J','Q','K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
-            let v2 = ['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
-            btnSplit.disabled = !(v1===v2 && hands.length < 4 && bankroll >= bet);
+            let v2 = hand.cards.length >= 2 ? (['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value) : null;
+            btnSplit.disabled = !(hand.cards.length === 2 && v1 === v2 && hands.length < 4 && bankroll >= bet);
         }
 
         function startGame() {
@@ -508,6 +578,10 @@
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
             currentHandIndex = 0; gameActive = true; msgEl.innerText = "Dein Zug!";
+            
+            // Reset Win Anim
+            winAnimEl.classList.remove('show');
+
             if (getHandDetails(hands[0].cards).score === 21) { hands[0].stood = true; gameActive = false; updateUI(false); determineWinner(); } else updateUI(true);
         }
 
@@ -538,17 +612,26 @@
         function determineWinner() {
             let dScore = getHandDetails(dealerHand).score, dBust = dScore > 21;
             let dBlackjack = dScore === 21 && dealerHand.length === 2, resultTexts = [];
+            let totalPayout = 0; // Wie viel Geld kam in dieser Runde insgesamt zurück?
+
             hands.forEach((hand, idx) => {
                 let pScore = getHandDetails(hand.cards).score, pBJ = pScore === 21 && hand.cards.length === 2 && hands.length === 1;
                 let label = hands.length > 1 ? `H${idx+1}: ` : '';
                 if (hand.bust) resultTexts.push(label + "Bust");
-                else if (dBust) { resultTexts.push(label + "Win"); bankroll += hand.bet * 2; }
-                else if (pBJ && !dBlackjack) { resultTexts.push(label + "BJ"); bankroll += hand.bet * 2.5; }
-                else if (pScore > dScore) { resultTexts.push(label + "Win"); bankroll += hand.bet * 2; }
+                else if (dBust) { resultTexts.push(label + "Win"); bankroll += hand.bet * 2; totalPayout += hand.bet * 2; }
+                else if (pBJ && !dBlackjack) { resultTexts.push(label + "BJ"); bankroll += hand.bet * 2.5; totalPayout += hand.bet * 2.5; }
+                else if (pScore > dScore) { resultTexts.push(label + "Win"); bankroll += hand.bet * 2; totalPayout += hand.bet * 2; }
                 else if (pScore < dScore) resultTexts.push(label + "Lost");
-                else { resultTexts.push(label + "Push"); bankroll += hand.bet; }
+                else { resultTexts.push(label + "Push"); bankroll += hand.bet; totalPayout += hand.bet; }
             });
+
             msgEl.innerHTML = resultTexts.join('<br>');
+            
+            // Wenn man etwas zurückbekommt, werfe die goldene Animation
+            if (totalPayout > 0) {
+                showWinAnimation(totalPayout);
+            }
+
             if (delayFeedback && roundTotal > 0) {
                 correctDisplayEl.innerText = `Richtig: ${correctDecisions}`; wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
                 showFeedback(`Runde: ${roundCorrect}/${roundTotal} richtig`, roundCorrect === roundTotal ? "green" : "red");
