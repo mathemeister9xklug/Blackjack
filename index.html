@@ -91,10 +91,25 @@
         #btn-hit { background-color: #3498db; }
         #btn-stand { background-color: #e74c3c; }
         #btn-double { background-color: #e67e22; }
-        #btn-split { background-color: #555; }
+        /* NEU: Split Button Farbe lila, nicht grau */
+        #btn-split { background-color: #8e44ad; } 
         .controls button:disabled { background-color: #333 !important; color: #666 !important; cursor: not-allowed; }
 
-        /* Horizontale Einsatz Leiste ganz unten - Responsiv & immer runde Buttons */
+        /* NEU: Massive Hervorhebung der aktiven Hand */
+        .player-hands-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; width: 100%; }
+        
+        .hand-area { 
+            padding: 10px; border-radius: 8px; border: 4px solid transparent; min-width: 150px; 
+            transition: all 0.3s ease; /* Weicher Übergang */
+        }
+        
+        .hand-area.active { 
+            border-color: #f1c40f; /* Dicker Goldrahmen */
+            background: rgba(241, 196, 15, 0.15); /* Heller Goldhintergrund */
+            box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); /* Glow-Effekt */
+        }
+
+        /* Horizontale Einsatz Leiste ganz unten */
         .bet-row {
             display: flex; justify-content: center; align-items: center; gap: clamp(6px, 1.5vw, 12px);
             margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);
@@ -104,7 +119,7 @@
         .chip-btn, .chip-input {
             width: clamp(40px, 10vw, 55px);
             height: clamp(40px, 10vw, 55px);
-            flex-shrink: 0; /* Verhindert das ovale Quetschen */
+            flex-shrink: 0;
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             box-sizing: border-box; margin: 0; padding: 0;
@@ -151,7 +166,7 @@
             background: #111; border: 2px solid #d4af37; padding: 20px; border-radius: 10px;
             max-width: 450px; width: 90%; text-align: center;
         }
-        .leaderboard-list { list-style: none; padding: 0; margin: 20px 0; max-height: 300px; overflow-y: auto; }
+        .leaderboard-list { list-style: none; padding: 0; margin: 20px 0; max-height: 250px; overflow-y: auto; }
         .leaderboard-list li { 
             display: flex; justify-content: space-between; align-items: center; 
             padding: 10px 8px; border-bottom: 1px solid #333; 
@@ -377,31 +392,39 @@
                 hands[currentHandIndex].stood = true;
                 hands[currentHandIndex + 1].stood = true;
             }
+            // Bleibe bei derselben Hand (die jetzt Karte 1 des Splits ist), advanceHand(false) prüft auf 21/Bust/Stood
             advanceHand(false);
         }
 
-        function advanceHand(next) {
-            if (next) currentHandIndex++;
+        // --- NEU: Optimierte Logik für Hand-Wechsel und Highlight ---
+        function advanceHand(incrementIndex) {
+            if (incrementIndex) currentHandIndex++;
             
+            // Schleife um beendete Hände (Bust, Stood, 21) zu überspringen
             while (currentHandIndex < hands.length) {
                 let h = hands[currentHandIndex];
                 let score = getHandDetails(h.cards).score;
                 
+                // Auto-Stand wenn Score genau 21 ist
                 if (score === 21 && !h.bust) {
                     h.stood = true;
                 }
                 
+                // Wenn Hand beendet ist, gehe zur nächsten
                 if (h.bust || h.stood) {
                     currentHandIndex++;
                 } else {
+                    // Gültige Hand gefunden, stoppe Schleife
                     break;
                 }
             }
             
+            // Wenn keine Hände mehr übrig sind, spielt der Dealer
             if (currentHandIndex >= hands.length) { 
                 gameActive = false; 
                 playDealer(); 
             } else {
+                // UI aktualisieren (setzt das Highlight auf die neue currentHandIndex)
                 updateUI();
             }
         }
@@ -443,6 +466,7 @@
             updateChart(); updateUI(false);
         }
 
+        // --- Helper ---
         function getCorrectMove(pCards, dCard, canP, canD) {
             const { score: pS, isSoft: soft } = getHandDetails(pCards);
             const dV = ['J','Q','K'].includes(dCard.value) ? 10 : (dCard.value === 'A' ? 11 : parseInt(dCard.value));
@@ -468,12 +492,16 @@
             return 'H';
         }
 
+        // --- NEU: UI Funktion setzt das .active Highlight basierend auf currentHandIndex ---
         function updateUI(hideDealer = true) {
             elements.dealerCards.innerHTML = ''; dealerHand.forEach((c, i) => elements.dealerCards.appendChild(renderCard(c, i === 1 && hideDealer)));
             elements.dealerScore.innerText = showScores ? (hideDealer ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score) : "";
             elements.playerContainer.innerHTML = '';
             hands.forEach((h, i) => {
-                let div = document.createElement('div'); div.className = `hand-area ${i === currentHandIndex && gameActive ? 'active' : ''}`;
+                let div = document.createElement('div'); 
+                // Setze Highlight nur wenn Spiel aktiv und es die aktuelle Hand ist
+                div.className = `hand-area ${i === currentHandIndex && gameActive ? 'active' : ''}`;
+                
                 let cardsDiv = document.createElement('div'); cardsDiv.className = 'cards'; h.cards.forEach(c => cardsDiv.appendChild(renderCard(c)));
                 let scoreDiv = document.createElement('div'); scoreDiv.className = 'score-display';
                 scoreDiv.innerText = showScores ? getHandDetails(h.cards).score : "";
@@ -543,6 +571,7 @@
         elements.btnShowLeaderboard.addEventListener('click', fetchLeaderboard);
         document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('leaderboard-modal').style.display = 'none');
 
+        // NEU: Top 10 Fetch zeigt Accuracy und Entscheidungen
         async function fetchLeaderboard() {
             if (!supabaseClient) return;
             document.getElementById('leaderboard-modal').style.display = 'flex';
