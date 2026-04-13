@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blackjack Pro Trainer - Strategy Counter</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -26,12 +28,14 @@
         .correct-score { color: #2ecc71; }
         .wrong-score { color: #e74c3c; }
         
-        #btn-toggle-scores, #btn-toggle-feedback {
+        .action-btn {
             background: #444; color: #d4af37; border: 1px solid #d4af37;
             padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;
         }
-        #btn-toggle-scores.off { background: #8e44ad; color: white; border-color: white; }
-        #btn-toggle-feedback.off { background: #e67e22; color: white; border-color: white; }
+        .action-btn:hover { background: #555; }
+        .action-btn.off { background: #8e44ad; color: white; border-color: white; }
+        #btn-save-score { background: #27ae60; color: white; border-color: #2ecc71; }
+        #btn-show-leaderboard { background: #2980b9; color: white; border-color: #3498db; }
 
         .bet-controls { margin-bottom: 20px; }
         .bet-btn {
@@ -92,6 +96,29 @@
         #btn-stand:not(:disabled) { background-color: #c0392b; }
         #btn-double:not(:disabled) { background-color: #e67e22; }
         #btn-split:not(:disabled) { background-color: #8e44ad; }
+
+        /* Modal Styles für Leaderboard */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #111; border: 2px solid #d4af37; padding: 20px; border-radius: 10px;
+            max-width: 400px; width: 90%; text-align: center;
+        }
+        .modal-content h2 { color: #d4af37; margin-top: 0; }
+        .leaderboard-list {
+            list-style: none; padding: 0; margin: 20px 0; max-height: 300px; overflow-y: auto;
+        }
+        .leaderboard-list li {
+            display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #333;
+            font-size: 1.1rem;
+        }
+        .leaderboard-list li span:last-child { font-weight: bold; color: #2ecc71; }
+        .close-modal-btn {
+            background: #c0392b; color: white; border: none; padding: 10px 20px;
+            border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -102,8 +129,13 @@
         <div class="stat-box" id="bet-display">Einsatz: 1 €</div>
         <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
         <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
-        <button id="btn-toggle-scores">Werte: AN</button>
-        <button id="btn-toggle-feedback">Feedback: SOFORT</button>
+    </div>
+    
+    <div class="stats-bar">
+        <button class="action-btn" id="btn-toggle-scores">Werte: AN</button>
+        <button class="action-btn" id="btn-toggle-feedback">Feedback: SOFORT</button>
+        <button class="action-btn" id="btn-save-score">💾 Score speichern</button>
+        <button class="action-btn" id="btn-show-leaderboard">🏆 Rangliste</button>
     </div>
 
     <div class="bet-controls" id="bet-controls">
@@ -137,7 +169,25 @@
         <canvas id="bankrollChart"></canvas>
     </div>
 
+    <div class="modal-overlay" id="leaderboard-modal">
+        <div class="modal-content">
+            <h2>🏆 Hall of Fame</h2>
+            <ul class="leaderboard-list" id="leaderboard-list">
+                <li>Lade Daten...</li>
+            </ul>
+            <button class="close-modal-btn" id="btn-close-modal">Schließen</button>
+        </div>
+    </div>
+
     <script>
+        // ==========================================
+        // SUPABASE KONFIGURATION - HIER DEINE KEYS EINTRAGEN!
+        // ==========================================
+        const SUPABASE_URL = 'https://dxrfmklyptakktvmbazx.supabase.co'; // Sieht meist so aus: https://xxxx.supabase.co
+        const SUPABASE_KEY = 'sb_publishable_OgnIsz3jxGoKyMsUVHfONg_hK04nmsQ'; 
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // ==========================================
+
         let bankroll = 50;
         let bet = 1;
         let correctDecisions = 0;
@@ -165,6 +215,7 @@
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
         const NUM_DECKS = 6;
 
+        // DOM Elemente
         const bankrollEl = document.getElementById('bankroll-display');
         const betDisplayEl = document.getElementById('bet-display');
         const correctDisplayEl = document.getElementById('correct-display');
@@ -178,12 +229,87 @@
         
         const btnToggleScores = document.getElementById('btn-toggle-scores');
         const btnToggleFeedback = document.getElementById('btn-toggle-feedback');
+        const btnSaveScore = document.getElementById('btn-save-score');
+        const btnShowLeaderboard = document.getElementById('btn-show-leaderboard');
         
+        const leaderboardModal = document.getElementById('leaderboard-modal');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        const leaderboardList = document.getElementById('leaderboard-list');
+
         const btnDeal = document.getElementById('btn-deal');
         const btnHit = document.getElementById('btn-hit');
         const btnStand = document.getElementById('btn-stand');
         const btnDouble = document.getElementById('btn-double');
         const btnSplit = document.getElementById('btn-split');
+
+        // --- Leaderboard & Supabase Logik ---
+        
+        btnSaveScore.addEventListener('click', async () => {
+            if (gameActive) {
+                alert("Beende erst die laufende Runde!");
+                return;
+            }
+            
+            let playerName = prompt(`Dein aktueller Score ist ${bankroll} €. Unter welchem Namen möchtest du speichern?`);
+            
+            if (!playerName || playerName.trim() === "") return;
+            
+            btnSaveScore.innerText = "Speichere...";
+            btnSaveScore.disabled = true;
+
+            const { data, error } = await supabase
+                .from('leaderboard')
+                .insert([{ name: playerName.trim(), score: bankroll }]);
+
+            btnSaveScore.innerText = "💾 Score speichern";
+            btnSaveScore.disabled = false;
+
+            if (error) {
+                console.error(error);
+                alert("Fehler beim Speichern. Hast du die Supabase-Keys im Code eingetragen?");
+            } else {
+                showFeedback("Score gespeichert!", "green");
+                fetchAndShowLeaderboard();
+            }
+        });
+
+        btnShowLeaderboard.addEventListener('click', fetchAndShowLeaderboard);
+        
+        btnCloseModal.addEventListener('click', () => {
+            leaderboardModal.style.display = 'none';
+        });
+
+        async function fetchAndShowLeaderboard() {
+            leaderboardModal.style.display = 'flex';
+            leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
+
+            const { data, error } = await supabase
+                .from('leaderboard')
+                .select('*')
+                .order('score', { ascending: false })
+                .limit(10); // Die Top 10 holen
+
+            if (error) {
+                console.error(error);
+                leaderboardList.innerHTML = "<li>Fehler beim Laden.</li>";
+                return;
+            }
+
+            if (data.length === 0) {
+                leaderboardList.innerHTML = "<li>Noch keine Einträge!</li>";
+                return;
+            }
+
+            leaderboardList.innerHTML = "";
+            data.forEach((entry, index) => {
+                let li = document.createElement('li');
+                li.innerHTML = `<span>#${index + 1} ${entry.name}</span> <span>${entry.score} €</span>`;
+                leaderboardList.appendChild(li);
+            });
+        }
+
+
+        // --- Restlicher Game-Code ---
 
         // Initialisiere Graph
         function initChart() {
@@ -201,8 +327,8 @@
                         borderWidth: 2,
                         fill: true,
                         tension: 0.1,
-                        pointRadius: 0, // Minimalistisch: Keine Punkte
-                        pointHoverRadius: 4 // Punkt erscheint nur, wenn du mit der Maus drüberfährst
+                        pointRadius: 0,
+                        pointHoverRadius: 4 
                     }]
                 },
                 options: {
@@ -212,9 +338,7 @@
                         x: { display: true, title: { display: true, text: 'Gespielte Runden' }, grid: { color: 'rgba(255,255,255,0.1)' } },
                         y: { display: true, title: { display: true, text: 'Guthaben (€)' }, grid: { color: 'rgba(255,255,255,0.1)' } }
                     },
-                    plugins: {
-                        legend: { display: true }
-                    }
+                    plugins: { legend: { display: true } }
                 }
             });
         }
@@ -241,30 +365,17 @@
             osc.onended = () => { osc.disconnect(); gainNode.disconnect(); };
 
             if (type === 'correct') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
-                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-                osc.start(audioCtx.currentTime);
-                osc.stop(audioCtx.currentTime + 0.3);
+                osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
             } else if (type === 'wrong') {
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-                osc.start(audioCtx.currentTime);
-                osc.stop(audioCtx.currentTime + 0.25);
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.25);
             } else if (type === 'shuffle') {
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1);
-                osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.2);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-                osc.start(audioCtx.currentTime);
-                osc.stop(audioCtx.currentTime + 0.2);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1); osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.2);
             }
         }
 
@@ -295,9 +406,7 @@
             deck = [];
             for (let d = 0; d < NUM_DECKS; d++) {
                 for (let suit of suits) {
-                    for (let value of values) {
-                        deck.push({ suit, value });
-                    }
+                    for (let value of values) { deck.push({ suit, value }); }
                 }
             }
             for (let i = deck.length - 1; i > 0; i--) {
@@ -324,9 +433,7 @@
             const div = document.createElement('div');
             div.className = 'card';
             if (hidden) {
-                div.style.background = '#333';
-                div.style.border = '1px solid #777';
-                return div;
+                div.style.background = '#333'; div.style.border = '1px solid #777'; return div;
             }
             if (card.suit === '♥' || card.suit === '♦') div.classList.add('red');
             div.innerText = card.value + card.suit;
@@ -335,8 +442,7 @@
 
         function showFeedback(text, type) {
             clearTimeout(toastTimeout);
-            toastEl.innerText = text;
-            toastEl.className = type;
+            toastEl.innerText = text; toastEl.className = type;
             toastTimeout = setTimeout(() => { toastEl.className = ''; }, 2500);
         }
 
@@ -385,33 +491,21 @@
             const canDouble = hand.cards.length === 2 && bankroll >= bet;
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
-            
-            // Casino Standard: Max. 4 Hände (also 3 Splits)
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= bet && hands.length < 4;
 
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
             let isCorrect = (action === correctAction);
 
             roundTotal++;
-
-            if (isCorrect) {
-                correctDecisions++;
-                roundCorrect++;
-            } else {
-                wrongDecisions++;
-            }
+            if (isCorrect) { correctDecisions++; roundCorrect++; } else { wrongDecisions++; }
 
             if (!delayFeedback) {
                 correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
                 wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                
-                if (isCorrect) {
-                    showFeedback("Richtig!", "green");
-                    playSound('correct');
-                } else {
+                if (isCorrect) { showFeedback("Richtig!", "green"); playSound('correct'); } 
+                else {
                     let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction];
-                    showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red");
-                    playSound('wrong');
+                    showFeedback(`Falsch! (Korrekt war: ${moveName})`, "red"); playSound('wrong');
                 }
             }
 
@@ -425,11 +519,8 @@
             dealerCardsEl.innerHTML = '';
             dealerHand.forEach((card, i) => dealerCardsEl.appendChild(renderCard(card, i === 1 && hideDealerCard)));
             
-            if (showScores) {
-                dealerScoreEl.innerText = hideDealerCard ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score;
-            } else {
-                dealerScoreEl.innerText = "";
-            }
+            if (showScores) dealerScoreEl.innerText = hideDealerCard ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score;
+            else dealerScoreEl.innerText = "";
 
             playerHandsContainer.innerHTML = '';
             hands.forEach((hand, index) => {
@@ -444,9 +535,7 @@
                 
                 if (hand.bust) scoreDiv.innerText = 'Bust!';
                 else if (hand.cards.length === 2 && s === 21 && hands.length === 1) scoreDiv.innerText = 'Blackjack!';
-                else {
-                    scoreDiv.innerText = showScores ? s : "";
-                }
+                else scoreDiv.innerText = showScores ? s : "";
                 
                 handDiv.appendChild(cardsDiv);
                 handDiv.appendChild(scoreDiv);
@@ -471,15 +560,12 @@
                 return;
             }
             
-            btnHit.disabled = false;
-            btnStand.disabled = false;
+            btnHit.disabled = false; btnStand.disabled = false;
             btnDouble.disabled = !(hand.cards.length === 2 && bankroll >= bet);
             
             let v1 = ['J', 'Q', 'K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             let v2 = ['J', 'Q', 'K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
             const isPair = hand.cards.length === 2 && v1 === v2;
-            
-            // Casino Standard: Max. 4 Hände gleichzeitig
             btnSplit.disabled = !(isPair && hands.length < 4 && bankroll >= bet);
         }
 
@@ -488,86 +574,57 @@
             if (bankroll < bet) { msgEl.innerText = "Nicht genug Guthaben!"; return; }
             
             let totalCards = NUM_DECKS * 52;
-            // Casino Penetration: ~75%. Es wird erst gemischt, wenn nur noch 25% der Karten (ca. 1.5 Decks) im Schlitten sind.
             let shuffleThreshold = totalCards * 0.25; 
 
             if (deck.length < shuffleThreshold || deck.length === 0) {
-                buildDeck();
-                showFeedback("Mischkarte erreicht! Schuh neu gemischt.", "blue");
-                playSound('shuffle');
+                buildDeck(); showFeedback("Mischkarte erreicht! Schuh neu gemischt.", "blue"); playSound('shuffle');
             }
             
-            roundCorrect = 0;
-            roundTotal = 0;
-
-            bankroll -= bet;
+            roundCorrect = 0; roundTotal = 0; bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
-            currentHandIndex = 0;
-            gameActive = true;
-            msgEl.innerText = "Dein Zug!";
+            currentHandIndex = 0; gameActive = true; msgEl.innerText = "Dein Zug!";
             
             if (getHandDetails(hands[0].cards).score === 21) {
-                hands[0].stood = true;
-                gameActive = false;
-                updateUI(false);
-                determineWinner();
+                hands[0].stood = true; gameActive = false; updateUI(false); determineWinner();
             } else { updateUI(true); }
         }
 
         function executeHit() {
-            let hand = hands[currentHandIndex];
-            hand.cards.push(deck.pop());
+            let hand = hands[currentHandIndex]; hand.cards.push(deck.pop());
             if (getHandDetails(hand.cards).score > 21) hand.bust = true;
             advanceHand(false);
         }
 
-        function executeStand() {
-            hands[currentHandIndex].stood = true;
-            advanceHand(true);
-        }
+        function executeStand() { hands[currentHandIndex].stood = true; advanceHand(true); }
 
         function executeDouble() {
-            let hand = hands[currentHandIndex];
-            bankroll -= bet;
-            hand.bet += bet;
-            hand.cards.push(deck.pop());
-            if (getHandDetails(hand.cards).score > 21) hand.bust = true;
-            else hand.stood = true;
+            let hand = hands[currentHandIndex]; bankroll -= bet; hand.bet += bet; hand.cards.push(deck.pop());
+            if (getHandDetails(hand.cards).score > 21) hand.bust = true; else hand.stood = true;
             advanceHand(true);
         }
 
         function executeSplit() {
-            let hand = hands[currentHandIndex];
-            bankroll -= bet;
-            let c1 = hand.cards[0];
-            let c2 = hand.cards[1];
+            let hand = hands[currentHandIndex]; bankroll -= bet;
+            let c1 = hand.cards[0]; let c2 = hand.cards[1];
             
             let newHand1 = { cards: [c1, deck.pop()], bet: bet, bust: false, stood: false };
             let newHand2 = { cards: [c2, deck.pop()], bet: bet, bust: false, stood: false };
             hands.splice(currentHandIndex, 1, newHand1, newHand2);
             
-            if (c1.value === 'A') {
-                hands[currentHandIndex].stood = true;
-                hands[currentHandIndex + 1].stood = true;
-            }
-            
-            updateUI(); 
-            advanceHand(false); 
+            if (c1.value === 'A') { hands[currentHandIndex].stood = true; hands[currentHandIndex + 1].stood = true; }
+            updateUI(); advanceHand(false); 
         }
 
         function advanceHand(incrementIndex = true) {
             if (incrementIndex) currentHandIndex++;
             while (currentHandIndex < hands.length) {
                 let hand = hands[currentHandIndex];
-                if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) {
-                    currentHandIndex++;
-                } else { break; }
+                if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) currentHandIndex++;
+                else break; 
             }
-            if (currentHandIndex >= hands.length) {
-                gameActive = false;
-                playDealer();
-            } else { updateUI(); }
+            if (currentHandIndex >= hands.length) { gameActive = false; playDealer(); } 
+            else updateUI(); 
         }
 
         function playDealer() {
@@ -576,75 +633,43 @@
             
             if (!allHandsFinished) {
                 let dScore = getHandDetails(dealerHand).score;
-                while (dScore < 17) {
-                    dealerHand.push(deck.pop());
-                    dScore = getHandDetails(dealerHand).score;
-                }
+                while (dScore < 17) { dealerHand.push(deck.pop()); dScore = getHandDetails(dealerHand).score; }
             }
-            updateUI(false);
-            determineWinner();
+            updateUI(false); determineWinner();
         }
 
         function determineWinner() {
-            let dScore = getHandDetails(dealerHand).score;
-            let dBust = dScore > 21;
-            let dBlackjack = dScore === 21 && dealerHand.length === 2;
-            let resultTexts = [];
+            let dScore = getHandDetails(dealerHand).score; let dBust = dScore > 21;
+            let dBlackjack = dScore === 21 && dealerHand.length === 2; let resultTexts = [];
             
             hands.forEach((hand, idx) => {
                 let pScore = getHandDetails(hand.cards).score;
                 let pBlackjack = pScore === 21 && hand.cards.length === 2 && hands.length === 1;
                 let label = hands.length > 1 ? `Hand ${idx+1}: ` : '';
                 
-                if (hand.bust) {
-                    resultTexts.push(label + "Bust (-)");
-                } else if (dBust) {
-                    resultTexts.push(label + "Dealer Bust (+)");
-                    bankroll += hand.bet * 2;
-                } else if (pBlackjack && !dBlackjack) {
-                    resultTexts.push(label + "Blackjack (+1.5)");
-                    bankroll += hand.bet + (hand.bet * 1.5);
-                } else if (!pBlackjack && dBlackjack) {
-                    resultTexts.push(label + "Verloren (Dealer BJ)");
-                } else if (pBlackjack && dBlackjack) {
-                    resultTexts.push(label + "Push (Beide BJ)");
-                    bankroll += hand.bet;
-                } else if (pScore > dScore) {
-                    resultTexts.push(label + "Gewonnen (+)");
-                    bankroll += hand.bet * 2;
-                } else if (pScore < dScore) {
-                    resultTexts.push(label + "Verloren (-)");
-                } else {
-                    resultTexts.push(label + "Push (=)");
-                    bankroll += hand.bet;
-                }
+                if (hand.bust) { resultTexts.push(label + "Bust (-)"); } 
+                else if (dBust) { resultTexts.push(label + "Dealer Bust (+)"); bankroll += hand.bet * 2; } 
+                else if (pBlackjack && !dBlackjack) { resultTexts.push(label + "Blackjack (+1.5)"); bankroll += hand.bet + (hand.bet * 1.5); } 
+                else if (!pBlackjack && dBlackjack) { resultTexts.push(label + "Verloren (Dealer BJ)"); } 
+                else if (pBlackjack && dBlackjack) { resultTexts.push(label + "Push (Beide BJ)"); bankroll += hand.bet; } 
+                else if (pScore > dScore) { resultTexts.push(label + "Gewonnen (+)"); bankroll += hand.bet * 2; } 
+                else if (pScore < dScore) { resultTexts.push(label + "Verloren (-)"); } 
+                else { resultTexts.push(label + "Push (=)"); bankroll += hand.bet; }
             });
             
-            msgEl.innerHTML = resultTexts.join('<br>');
-            bankrollEl.innerText = `Bankroll: ${bankroll} €`;
+            msgEl.innerHTML = resultTexts.join('<br>'); bankrollEl.innerText = `Bankroll: ${bankroll} €`;
 
             if (delayFeedback && roundTotal > 0) {
-                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`;
-                wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-
-                let type = roundCorrect === roundTotal ? "green" : "red";
-                showFeedback(`Entscheidungen: ${roundCorrect}/${roundTotal} richtig`, type);
-                
-                if (roundCorrect === roundTotal) {
-                    playSound('correct');
-                } else {
-                    playSound('wrong');
-                }
+                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`; wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
+                let type = roundCorrect === roundTotal ? "green" : "red"; showFeedback(`Entscheidungen: ${roundCorrect}/${roundTotal} richtig`, type);
+                if (roundCorrect === roundTotal) playSound('correct'); else playSound('wrong');
             }
 
-            updateButtons();
-            updateChart();
+            updateButtons(); updateChart();
         }
 
-        initChart(); 
-        buildDeck();
+        initChart(); buildDeck();
         
-        // Listener
         btnDeal.addEventListener('click', startGame);
         btnHit.addEventListener('click', () => handlePlayerAction('H'));
         btnStand.addEventListener('click', () => handlePlayerAction('S'));
