@@ -26,8 +26,8 @@
             background: #222; padding: 8px 15px; border-radius: 5px; border: 1px solid #d4af37;
             font-size: 1.1rem; font-weight: bold; color: #fff;
         }
-        .correct-score { color: #2ecc71; }
-        .wrong-score { color: #e74c3c; }
+        .correct-score { color: #2ecc71; border-color: #2ecc71; }
+        .wrong-score { color: #e74c3c; border-color: #e74c3c; }
         
         .action-btn {
             background: #444; color: #d4af37; border: 1px solid #d4af37;
@@ -38,22 +38,57 @@
         #btn-save-score { background: #27ae60; color: white; border-color: #2ecc71; }
         #btn-show-leaderboard { background: #2980b9; color: white; border-color: #3498db; }
 
-        .custom-input-group {
-            display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 5px; border: 1px solid #555;
-        }
-        .custom-input-group label { font-size: 0.8rem; color: #aaa; }
-        .custom-input-group input { 
-            width: 60px; background: #111; color: #d4af37; border: 1px solid #d4af37; padding: 4px; border-radius: 3px; font-weight: bold; text-align: center;
-        }
-
+        /* Neues Layout: Sidebar & Play Area */
         .board { 
-            max-width: 700px; margin: 0 auto;
+            max-width: 650px; margin: 0 auto;
             background: rgba(0,0,0,0.4); padding: 20px; 
             border-radius: 10px; border: 2px solid #145a2b; position: relative; 
             transition: background-color 0.2s, border-color 0.2s;
-            overflow: hidden; /* Für die Animation wichtig */
+            overflow: hidden;
+            display: flex; /* Flexbox für Side-by-Side */
         }
         
+        /* Linke Einsatz-Leiste (Die Boxen) */
+        .bet-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 20px;
+            border-right: 2px solid rgba(255,255,255,0.05);
+            justify-content: center;
+            align-items: center;
+            min-width: 60px;
+        }
+
+        .chip-btn {
+            width: 48px; height: 48px;
+            background: transparent;
+            border: 2px solid #2ecc71; color: #2ecc71;
+            font-size: 1.2rem; font-weight: bold; border-radius: 8px;
+            cursor: pointer; transition: 0.2s; display: flex;
+            justify-content: center; align-items: center;
+            padding: 0;
+        }
+        .chip-btn:hover:not(:disabled) { background: rgba(46, 204, 113, 0.2); }
+        .chip-btn:disabled { border-color: #444; color: #555; cursor: not-allowed; }
+        
+        .custom-bet-wrapper {
+            display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 10px;
+        }
+        .chip-input {
+            width: 44px; height: 44px;
+            background: transparent; border: 2px dashed #f1c40f; color: #f1c40f;
+            text-align: center; font-weight: bold; font-size: 1rem;
+            border-radius: 8px; outline: none; box-sizing: border-box; padding: 0;
+        }
+        .chip-input:disabled { border-color: #555; color: #555; cursor: not-allowed;}
+
+        /* Spiel-Bereich Mitte/Rechts */
+        .play-area {
+            flex-grow: 1; display: flex; flex-direction: column; align-items: center;
+            padding-left: 20px; position: relative; min-height: 350px;
+        }
+
         /* Animation: Falscher Move (Rot) */
         @keyframes flashWrong {
             0% { background-color: rgba(0,0,0,0.4); border-color: #145a2b; }
@@ -74,11 +109,12 @@
             color: #f1c40f; font-size: 3.5rem; font-weight: bold; 
             text-shadow: 0px 0px 20px rgba(212, 175, 55, 1), 2px 2px 5px rgba(0,0,0,0.8);
             pointer-events: none; opacity: 0; z-index: 100; transform: translateX(-50%);
+            white-space: nowrap;
         }
         .win-anim.show { animation: floatUpFade 2s ease-out forwards; }
         
         .chart-wrapper {
-            max-width: 700px; margin: 20px auto;
+            max-width: 650px; margin: 20px auto;
             background: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px; border: 2px solid #145a2b;
             height: 250px; position: relative;
         }
@@ -109,29 +145,24 @@
         .hand-area { padding: 10px; border-radius: 8px; border: 2px solid transparent; min-width: 150px; }
         .hand-area.active { border-color: #f1c40f; background: rgba(255,255,255,0.05); }
 
-        #message { font-size: 1.2rem; font-weight: bold; margin: 15px 0; min-height: 30px; color: #f1c40f; }
+        #message { font-size: 1.2rem; font-weight: bold; margin: 15px 0; min-height: 30px; color: #f1c40f; display: flex; align-items: center; justify-content: center;}
         
-        /* Controls Styles */
-        .controls { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
+        /* Action Controls Styles (Unten zentriert) */
+        .controls { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; }
         .controls button {
             border: 2px solid transparent; padding: 12px 18px; font-size: 1rem;
             font-weight: bold; color: white; cursor: pointer; border-radius: 5px; transition: 0.2s;
         }
         .controls button:disabled { background-color: #333 !important; color: #666 !important; cursor: not-allowed; border-color: transparent !important; }
         
-        /* Deal Buttons (Grün) */
-        .deal-btn { background-color: #27ae60; }
-        .deal-btn:hover { background-color: #2ecc71; }
-        
-        /* Action Buttons */
-        #btn-hit { background-color: #2980b9; }
-        #btn-hit:hover:not(:disabled) { background-color: #3498db; }
-        #btn-stand { background-color: #c0392b; }
-        #btn-stand:hover:not(:disabled) { background-color: #e74c3c; }
+        #btn-hit { background-color: #3498db; }
+        #btn-hit:hover:not(:disabled) { background-color: #2980b9; }
+        #btn-stand { background-color: #e74c3c; }
+        #btn-stand:hover:not(:disabled) { background-color: #c0392b; }
         #btn-double { background-color: #e67e22; }
-        #btn-double:hover:not(:disabled) { background-color: #f39c12; }
-        #btn-split { background-color: #8e44ad; }
-        #btn-split:hover:not(:disabled) { background-color: #9b59b6; }
+        #btn-double:hover:not(:disabled) { background-color: #d35400; }
+        #btn-split { background-color: #555; }
+        #btn-split:hover:not(:disabled) { background-color: #444; }
 
         .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -154,6 +185,14 @@
             background: #c0392b; color: white; border: none; padding: 10px 20px;
             border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1rem;
         }
+        
+        /* Mobile Adjustment für Sidebar */
+        @media (max-width: 500px) {
+            .board { flex-direction: column; }
+            .bet-sidebar { flex-direction: row; border-right: none; border-bottom: 2px solid rgba(255,255,255,0.05); padding-right: 0; padding-bottom: 15px; margin-bottom: 10px; }
+            .custom-bet-wrapper { margin-bottom: 0; }
+            .play-area { padding-left: 0; }
+        }
     </style>
 </head>
 <body>
@@ -162,11 +201,6 @@
     
     <div class="stats-bar">
         <div class="stat-box" id="bankroll-display">Bankroll: 50 €</div>
-        <div class="custom-input-group">
-            <label>Start-Guthaben:</label>
-            <input type="number" id="input-start-bankroll" value="50" min="1">
-            <button class="action-btn" id="btn-set-bankroll" style="padding: 2px 8px; font-size: 0.7rem;">Set</button>
-        </div>
         <div class="stat-box" id="bet-display">Letzter Einsatz: -</div>
         <div class="stat-box correct-score" id="correct-display">Richtig: 0</div>
         <div class="stat-box wrong-score" id="wrong-display">Falsch: 0</div>
@@ -174,42 +208,43 @@
     
     <div class="stats-bar">
         <button class="action-btn" id="btn-toggle-scores">Werte: AN</button>
-        <button class="action-btn" id="btn-toggle-feedback">Feedback: SOFORT</button>
         <button class="action-btn" id="btn-save-score">💾 Score speichern</button>
         <button class="action-btn" id="btn-show-leaderboard">🏆 Rangliste</button>
     </div>
 
     <div class="board" id="game-board">
-        <div id="feedback-toast"></div>
-        <div id="win-animation" class="win-anim"></div>
-
-        <div class="area-title">Dealer</div>
-        <div class="cards" id="dealer-cards"></div>
-        <div class="score-display" id="dealer-score"></div>
-
-        <div id="message">Klicke unten auf einen Einsatz, um direkt zu starten!</div>
-
-        <div class="area-title">Deine Hand / Hände</div>
-        <div class="player-hands-container" id="player-hands-container"></div>
-
-        <div class="controls" id="deal-controls">
-            <button class="deal-btn" data-bet="1">Deal 1 €</button>
-            <button class="deal-btn" data-bet="2">Deal 2 €</button>
-            <button class="deal-btn" data-bet="4">Deal 4 €</button>
-            <button class="deal-btn" data-bet="8">Deal 8 €</button>
-            <button class="deal-btn" data-bet="16">Deal 16 €</button>
-            
-            <div class="custom-input-group" style="padding: 0; background: none; border: none;">
-                <input type="number" id="input-custom-bet" value="10" min="1" style="height: 38px; box-sizing: border-box;">
-                <button class="deal-btn" id="btn-deal-custom" style="padding: 10px 15px;">Deal Custom</button>
+        
+        <div class="bet-sidebar" id="deal-controls">
+            <div class="custom-bet-wrapper">
+                <input type="number" id="input-custom-bet" class="chip-input" placeholder="€" min="1">
+                <button class="chip-btn" id="btn-deal-custom" style="font-size: 0.7rem; height: 20px; border-color: #f1c40f; color:#f1c40f; border-radius: 4px;">Go</button>
             </div>
+            <button class="chip-btn deal-btn" data-bet="16">16</button>
+            <button class="chip-btn deal-btn" data-bet="8">8</button>
+            <button class="chip-btn deal-btn" data-bet="4">4</button>
+            <button class="chip-btn deal-btn" data-bet="2">2</button>
+            <button class="chip-btn deal-btn" data-bet="1">1</button>
         </div>
 
-        <div class="controls" id="action-controls" style="display: none;">
-            <button id="btn-hit">Hit</button>
-            <button id="btn-stand">Stand</button>
-            <button id="btn-double">Double</button>
-            <button id="btn-split">Split</button>
+        <div class="play-area">
+            <div id="feedback-toast"></div>
+            <div id="win-animation" class="win-anim"></div>
+
+            <div class="area-title">Dealer</div>
+            <div class="cards" id="dealer-cards"></div>
+            <div class="score-display" id="dealer-score"></div>
+
+            <div id="message"></div>
+
+            <div class="area-title">Deine Hand / Hände</div>
+            <div class="player-hands-container" id="player-hands-container"></div>
+
+            <div class="controls" id="action-controls">
+                <button id="btn-hit" disabled>Hit</button>
+                <button id="btn-stand" disabled>Stand</button>
+                <button id="btn-double" disabled>Double</button>
+                <button id="btn-split" disabled>Split</button>
+            </div>
         </div>
     </div>
 
@@ -244,7 +279,6 @@
         let wrongDecisions = 0;
         
         let showScores = true;
-        let delayFeedback = false;
         let roundCorrect = 0;
         let roundTotal = 0;
         
@@ -276,18 +310,13 @@
         const winAnimEl = document.getElementById('win-animation');
         const boardEl = document.getElementById('game-board');
         
-        const dealControls = document.getElementById('deal-controls');
-        const actionControls = document.getElementById('action-controls');
-        const dealButtons = document.querySelectorAll('.deal-btn:not(#btn-deal-custom)');
+        const dealButtons = document.querySelectorAll('.deal-btn');
         const btnDealCustom = document.getElementById('btn-deal-custom');
         const inputCustomBet = document.getElementById('input-custom-bet');
 
         const btnToggleScores = document.getElementById('btn-toggle-scores');
-        const btnToggleFeedback = document.getElementById('btn-toggle-feedback');
         const btnSaveScore = document.getElementById('btn-save-score');
         const btnShowLeaderboard = document.getElementById('btn-show-leaderboard');
-        const inputStartBankroll = document.getElementById('input-start-bankroll');
-        const btnSetBankroll = document.getElementById('btn-set-bankroll');
 
         const leaderboardModal = document.getElementById('leaderboard-modal');
         const btnCloseModal = document.getElementById('btn-close-modal');
@@ -298,7 +327,7 @@
         const btnDouble = document.getElementById('btn-double');
         const btnSplit = document.getElementById('btn-split');
 
-        // --- Deal & Bet Logic Unified ---
+        // --- Deal & Bet Logic ---
         
         dealButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -308,32 +337,20 @@
             });
         });
 
-        btnDealCustom.addEventListener('click', () => {
+        btnDealCustom.addEventListener('click', handleCustomDeal);
+        inputCustomBet.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleCustomDeal();
+        });
+
+        function handleCustomDeal() {
             if (gameActive) return;
             let val = parseInt(inputCustomBet.value);
             if (isNaN(val) || val <= 0) return;
             bet = val;
             startGame();
-        });
+        }
 
-        // --- Bankroll & UI ---
-
-        btnSetBankroll.addEventListener('click', () => {
-            if (gameActive) return;
-            let val = parseInt(inputStartBankroll.value);
-            if (isNaN(val) || val <= 0) return;
-            bankroll = val;
-            bankrollHistory = [bankroll];
-            roundLabels = [0];
-            totalRoundsPlayed = 0;
-            if (bankrollChart) {
-                bankrollChart.data.labels = roundLabels;
-                bankrollChart.data.datasets[0].data = bankrollHistory;
-                bankrollChart.update();
-            }
-            updateUI(false);
-            showFeedback(`Bankroll auf ${val} € gesetzt`, "blue");
-        });
+        // --- UI & Supabase ---
 
         btnSaveScore.addEventListener('click', async () => {
             if (!supabaseClient) { alert("Supabase nicht erreichbar."); return; }
@@ -414,10 +431,7 @@
             btnToggleScores.classList.toggle('off', !showScores); updateUI(!gameActive); 
         });
 
-        btnToggleFeedback.addEventListener('click', () => {
-            delayFeedback = !delayFeedback; btnToggleFeedback.innerText = `Feedback: ${delayFeedback ? 'ENDE' : 'SOFORT'}`;
-            btnToggleFeedback.classList.toggle('off', delayFeedback);
-        });
+        // --- Spiellogik ---
 
         function buildDeck() {
             deck = []; for (let d=0; d<NUM_DECKS; d++) values.forEach(v => suits.forEach(s => deck.push({suit:s, value:v})));
@@ -482,17 +496,19 @@
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
             let isCorrect = (action === correctAction);
             roundTotal++; 
-            if (isCorrect) { correctDecisions++; roundCorrect++; } else { wrongDecisions++; }
-            if (!delayFeedback) {
-                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`; wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                if (isCorrect) { 
-                    showFeedback("Richtig!", "green"); 
-                } else { 
-                    let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction]; 
-                    showFeedback(`Falsch! (Korrekt: ${moveName})`, "red"); 
-                    triggerWrongAnimation();
-                }
+            if (isCorrect) { 
+                correctDecisions++; roundCorrect++; 
+                showFeedback("Richtig!", "green"); 
+            } else { 
+                wrongDecisions++; 
+                let moveName = { 'H': 'Hit', 'S': 'Stand', 'D': 'Double', 'P': 'Split' }[correctAction]; 
+                showFeedback(`Falsch! (Korrekt: ${moveName})`, "red"); 
+                triggerWrongAnimation();
             }
+            
+            correctDisplayEl.innerText = `Richtig: ${correctDecisions}`; 
+            wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
+            
             if (action === 'H') executeHit(); else if (action === 'S') executeStand(); else if (action === 'D') executeDouble(); else if (action === 'P') executeSplit();
         }
 
@@ -509,18 +525,18 @@
                 handDiv.appendChild(cardsDiv); handDiv.appendChild(scoreDiv); playerHandsContainer.appendChild(handDiv);
             });
             bankrollEl.innerText = `Bankroll: ${bankroll} €`; 
-            betDisplayEl.innerText = `Letzter Einsatz: ${bet} €`;
+            betDisplayEl.innerText = `Letzter Einsatz: ${bet > 0 ? bet + ' €' : '-'}`;
             updateButtons();
         }
 
         function updateButtons() {
-            btnSetBankroll.disabled = gameActive;
-            
-            // UI Switch: Wenn Spiel aktiv -> Action Buttons, sonst -> Deal Buttons
+            // Einsatz-Chips Sidebar
+            dealButtons.forEach(btn => btn.disabled = gameActive);
+            inputCustomBet.disabled = gameActive;
+            btnDealCustom.disabled = gameActive;
+
+            // Aktionsbuttons immer an Ort und Stelle, nur disablen
             if (gameActive) {
-                dealControls.style.display = 'none';
-                actionControls.style.display = 'flex';
-                
                 let hand = hands[currentHandIndex];
                 if (hand.bust || hand.stood || getHandDetails(hand.cards).score === 21) { 
                     btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true; 
@@ -533,8 +549,7 @@
                 let v2 = hand.cards.length >= 2 ? (['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value) : null;
                 btnSplit.disabled = !(hand.cards.length === 2 && v1 === v2 && hands.length < 4 && bankroll >= bet);
             } else {
-                dealControls.style.display = 'flex';
-                actionControls.style.display = 'none';
+                btnHit.disabled = btnStand.disabled = btnDouble.disabled = btnSplit.disabled = true;
             }
         }
 
@@ -545,8 +560,9 @@
             roundCorrect = 0; roundTotal = 0; bankroll -= bet;
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: bet, bust: false, stood: false }];
-            currentHandIndex = 0; gameActive = true; msgEl.innerText = "Dein Zug!";
+            currentHandIndex = 0; gameActive = true; 
             
+            msgEl.innerText = "Dein Zug!";
             winAnimEl.classList.remove('show');
 
             if (getHandDetails(hands[0].cards).score === 21) { hands[0].stood = true; gameActive = false; updateUI(false); determineWinner(); } else updateUI(true);
@@ -596,19 +612,6 @@
             
             if (totalPayout > 0) {
                 showWinAnimation(totalPayout);
-            }
-
-            if (delayFeedback && roundTotal > 0) {
-                correctDisplayEl.innerText = `Richtig: ${correctDecisions}`; wrongDisplayEl.innerText = `Falsch: ${wrongDecisions}`;
-                showFeedback(`Runde: ${roundCorrect}/${roundTotal} richtig`, roundCorrect === roundTotal ? "green" : "red");
-                if (roundCorrect !== roundTotal) triggerWrongAnimation();
-            }
-            
-            // Text im UI umstellen für die nächste Runde
-            if(!gameActive) {
-                setTimeout(() => {
-                    if(!gameActive) document.getElementById('message').innerText = "Klicke unten auf einen Einsatz, um die nächste Runde zu starten!";
-                }, 2000);
             }
 
             updateChart(); updateUI(false);
