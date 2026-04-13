@@ -180,13 +180,9 @@
     </div>
 
     <script>
-        // ==========================================
-        // SUPABASE KONFIGURATION - HIER DEINE KEYS EINTRAGEN!
-        // ==========================================
-        const SUPABASE_URL = 'https://dxrfmklyptakktvmbazx.supabase.co'; // Sieht meist so aus: https://xxxx.supabase.co
+        const SUPABASE_URL = 'https://dxrfmklyptakktvmbazx.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_OgnIsz3jxGoKyMsUVHfONg_hK04nmsQ'; 
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        // ==========================================
 
         let bankroll = 50;
         let bet = 1;
@@ -257,7 +253,6 @@
             btnSaveScore.innerText = "Speichere...";
             btnSaveScore.disabled = true;
 
-            // FIX: Berechne die globalen Entscheidungen der gesamten Session
             let totalAllDecisions = correctDecisions + wrongDecisions;
             let accuracy = totalAllDecisions > 0 ? Math.round((correctDecisions / totalAllDecisions) * 100) : 0;
 
@@ -266,7 +261,7 @@
                 .insert([{ 
                     name: playerName.trim(), 
                     score: bankroll,
-                    rounds_played: totalAllDecisions, // Hier wird jetzt die korrekte Summe übergeben
+                    rounds_played: totalAllDecisions,
                     accuracy: accuracy             
                 }]);
 
@@ -288,7 +283,7 @@
             leaderboardModal.style.display = 'none';
         });
 
-      async function fetchAndShowLeaderboard() {
+        async function fetchAndShowLeaderboard() {
             leaderboardModal.style.display = 'flex';
             leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
 
@@ -296,7 +291,7 @@
                 .from('leaderboard')
                 .select('*')
                 .order('score', { ascending: false })
-                .limit(10); // Die Top 10 holen
+                .limit(10);
 
             if (error) {
                 console.error(error);
@@ -313,15 +308,18 @@
             data.forEach((entry, index) => {
                 let li = document.createElement('li');
                 
-                // FIX: Grammatik-Check für "Entscheidung" vs "Entscheidungen"
                 let decisionsCount = entry.rounds_played || 0;
                 let textDecisions = decisionsCount === 1 ? "Entscheidung" : "Entscheidungen";
+                
+                // Workaround für kaputte Alt-Daten in Supabase
+                let acc = entry.accuracy || 0;
+                if (acc > 100) acc = 100;
 
                 li.innerHTML = `
                     <div style="text-align: left; line-height: 1.3;">
                         <strong>#${index + 1} ${entry.name}</strong><br>
                         <span style="font-size: 0.85rem; color: #aaa;">
-                            ${decisionsCount} ${textDecisions} | ${entry.accuracy || 0}% richtig
+                            ${decisionsCount} ${textDecisions} | ${acc}% richtig
                         </span>
                     </div> 
                     <span style="font-size: 1.2rem; display: flex; align-items: center;">${entry.score} €</span>
@@ -330,27 +328,9 @@
             });
         }
 
-    leaderboardList.innerHTML = "";
-    data.forEach((entry, index) => {
-        let li = document.createElement('li');
-        // Layout: Links Name + Stats, Rechts der Score in Grün
-        li.innerHTML = `
-            <div style="text-align: left; line-height: 1.3;">
-                <strong>#${index + 1} ${entry.name}</strong><br>
-                <span style="font-size: 0.85rem; color: #aaa;">
-                    ${entry.rounds_played || 0} Entscheidungen | ${entry.accuracy || 0}% richtig
-                </span>
-            </div> 
-            <span style="font-size: 1.2rem; display: flex; align-items: center;">${entry.score} €</span>
-        `;
-        leaderboardList.appendChild(li);
-    });
-}
-
 
         // --- Restlicher Game-Code ---
 
-        // Initialisiere Graph
         function initChart() {
             const ctx = document.getElementById('bankrollChart').getContext('2d');
             Chart.defaults.color = '#aaa';
@@ -535,7 +515,6 @@
             let correctAction = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
             let isCorrect = (action === correctAction);
 
-            roundTotal++;
             if (isCorrect) { correctDecisions++; roundCorrect++; } else { wrongDecisions++; }
 
             if (!delayFeedback) {
