@@ -185,7 +185,7 @@
         // ==========================================
         const SUPABASE_URL = 'https://dxrfmklyptakktvmbazx.supabase.co'; // Sieht meist so aus: https://xxxx.supabase.co
         const SUPABASE_KEY = 'sb_publishable_OgnIsz3jxGoKyMsUVHfONg_hK04nmsQ'; 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         // ==========================================
 
         let bankroll = 50;
@@ -257,7 +257,7 @@
             btnSaveScore.innerText = "Speichere...";
             btnSaveScore.disabled = true;
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('leaderboard')
                 .insert([{ name: playerName.trim(), score: bankroll }]);
 
@@ -283,7 +283,7 @@
             leaderboardModal.style.display = 'flex';
             leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('leaderboard')
                 .select('*')
                 .order('score', { ascending: false })
