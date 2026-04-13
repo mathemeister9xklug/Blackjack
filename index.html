@@ -180,9 +180,20 @@
     </div>
 
     <script>
+        // Supabase sicher initialisieren (Absturzsicher)
         const SUPABASE_URL = 'https://dxrfmklyptakktvmbazx.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_OgnIsz3jxGoKyMsUVHfONg_hK04nmsQ'; 
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let supabaseClient = null;
+
+        try {
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } else {
+                console.warn("Supabase konnte nicht geladen werden (evtl. Adblocker aktiv).");
+            }
+        } catch(e) {
+            console.error("Fehler bei Supabase Init:", e);
+        }
 
         let bankroll = 50;
         let bet = 1;
@@ -205,7 +216,7 @@
         let bankrollHistory = [50];
         let roundLabels = [0];
         let totalRoundsPlayed = 0;
-        let bankrollChart;
+        let bankrollChart = null;
 
         const suits = ['♠', '♥', '♦', '♣'];
         const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -241,6 +252,10 @@
         // --- Leaderboard & Supabase Logik ---
         
         btnSaveScore.addEventListener('click', async () => {
+            if (!supabaseClient) {
+                alert("Die Bestenliste ist nicht erreichbar. Hast du einen Adblocker an?");
+                return;
+            }
             if (gameActive) {
                 alert("Beende erst die laufende Runde!");
                 return;
@@ -270,7 +285,7 @@
 
             if (error) {
                 console.error(error);
-                alert("Fehler beim Speichern. Hast du die Supabase-Keys im Code eingetragen?");
+                alert("Fehler beim Speichern in Supabase.");
             } else {
                 showFeedback("Score gespeichert!", "green");
                 fetchAndShowLeaderboard();
@@ -284,6 +299,10 @@
         });
 
         async function fetchAndShowLeaderboard() {
+            if (!supabaseClient) {
+                alert("Die Bestenliste konnte nicht geladen werden.");
+                return;
+            }
             leaderboardModal.style.display = 'flex';
             leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
 
@@ -311,7 +330,6 @@
                 let decisionsCount = entry.rounds_played || 0;
                 let textDecisions = decisionsCount === 1 ? "Entscheidung" : "Entscheidungen";
                 
-                // Workaround für kaputte Alt-Daten in Supabase
                 let acc = entry.accuracy || 0;
                 if (acc > 100) acc = 100;
 
@@ -332,37 +350,43 @@
         // --- Restlicher Game-Code ---
 
         function initChart() {
-            const ctx = document.getElementById('bankrollChart').getContext('2d');
-            Chart.defaults.color = '#aaa';
-            bankrollChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: roundLabels,
-                    datasets: [{
-                        label: 'Bankroll (€)',
-                        data: bankrollHistory,
-                        borderColor: '#d4af37',
-                        backgroundColor: 'rgba(212, 175, 55, 0.15)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.1,
-                        pointRadius: 0,
-                        pointHoverRadius: 4 
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { display: true, title: { display: true, text: 'Gespielte Runden' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                        y: { display: true, title: { display: true, text: 'Guthaben (€)' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            try {
+                if (typeof Chart === 'undefined') return;
+                const ctx = document.getElementById('bankrollChart').getContext('2d');
+                Chart.defaults.color = '#aaa';
+                bankrollChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: roundLabels,
+                        datasets: [{
+                            label: 'Bankroll (€)',
+                            data: bankrollHistory,
+                            borderColor: '#d4af37',
+                            backgroundColor: 'rgba(212, 175, 55, 0.15)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            pointHoverRadius: 4 
+                        }]
                     },
-                    plugins: { legend: { display: true } }
-                }
-            });
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { display: true, title: { display: true, text: 'Gespielte Runden' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                            y: { display: true, title: { display: true, text: 'Guthaben (€)' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                        },
+                        plugins: { legend: { display: true } }
+                    }
+                });
+            } catch(e) {
+                console.error("Fehler beim Starten des Graphen:", e);
+            }
         }
 
         function updateChart() {
+            if (!bankrollChart) return;
             totalRoundsPlayed++;
             roundLabels.push(totalRoundsPlayed);
             bankrollHistory.push(bankroll);
@@ -371,31 +395,35 @@
 
         let audioCtx;
         function initAudio() {
-            if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-            if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            try {
+                if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+                if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+            } catch(e) {}
         }
 
         function playSound(type) {
-            initAudio();
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            osc.onended = () => { osc.disconnect(); gainNode.disconnect(); };
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                osc.onended = () => { osc.disconnect(); gainNode.disconnect(); };
 
-            if (type === 'correct') {
-                osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
-            } else if (type === 'wrong') {
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.25);
-            } else if (type === 'shuffle') {
-                osc.type = 'triangle'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1); osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.2);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-                osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.2);
-            }
+                if (type === 'correct') {
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.25);
+                } else if (type === 'shuffle') {
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1); osc.frequency.linearRampToValueAtTime(400, audioCtx.currentTime + 0.2);
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.2);
+                }
+            } catch(e) {}
         }
 
         btnToggleScores.addEventListener('click', () => {
