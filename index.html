@@ -94,27 +94,44 @@
         #btn-split { background-color: #555; }
         .controls button:disabled { background-color: #333 !important; color: #666 !important; cursor: not-allowed; }
 
-        /* Horizontale Einsatz Leiste ganz unten */
+        /* Horizontale Einsatz Leiste ganz unten - Responsiv & immer runde Buttons */
         .bet-row {
-            display: flex; justify-content: center; align-items: center; gap: 12px;
+            display: flex; justify-content: center; align-items: center; gap: clamp(6px, 1.5vw, 12px);
             margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);
-            width: 100%;
+            width: 100%; flex-wrap: wrap;
+        }
+
+        .chip-btn, .chip-input {
+            width: clamp(40px, 10vw, 55px);
+            height: clamp(40px, 10vw, 55px);
+            flex-shrink: 0; /* Verhindert das ovale Quetschen */
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            box-sizing: border-box; margin: 0; padding: 0;
         }
         .chip-btn {
-            width: 50px; height: 50px; background: transparent;
-            border: 2px solid #2ecc71; color: #2ecc71;
-            font-size: 1.1rem; font-weight: bold; border-radius: 50%;
-            cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center;
+            background: transparent; border: 2px solid #2ecc71; color: #2ecc71;
+            font-size: clamp(0.9rem, 2.5vw, 1.2rem); font-weight: bold;
+            cursor: pointer; transition: 0.2s;
         }
         .chip-btn:hover:not(:disabled) { background: rgba(46, 204, 113, 0.2); }
-        /* Highlight für gewählten Button */
         .chip-btn.active { background: #f1c40f; border-color: #f1c40f; color: black; box-shadow: 0 0 15px #f1c40f; }
         .chip-btn:disabled { border-color: #444; color: #555; cursor: not-allowed; }
 
-        .custom-bet-box { display: flex; align-items: center; gap: 5px; margin-left: 10px; }
+        .custom-bet-box { display: flex; align-items: center; gap: 5px; margin-left: clamp(5px, 2vw, 10px); }
         .chip-input {
-            width: 50px; height: 50px; background: transparent; border: 2px dashed #f1c40f; 
-            color: #f1c40f; text-align: center; font-weight: bold; border-radius: 50%; outline: none;
+            background: transparent; border: 2px dashed #f1c40f; 
+            color: #f1c40f; text-align: center; font-weight: bold; outline: none;
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+            -moz-appearance: textfield; /* Pfeile in Firefox entfernen */
+        }
+        /* Pfeile in Chrome/Safari entfernen */
+        .chip-input::-webkit-outer-spin-button,
+        .chip-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        #btn-deal-custom {
+            width: auto; height: clamp(35px, 8vw, 45px); border-radius: 6px; 
+            padding: 0 10px; font-size: clamp(0.7rem, 2vw, 0.85rem);
         }
 
         .chart-wrapper { max-width: 650px; margin: 20px auto; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px; border: 2px solid #145a2b; height: 200px; }
@@ -182,7 +199,7 @@
                 <button class="chip-btn deal-btn" data-bet="16">16</button>
                 <div class="custom-bet-box">
                     <input type="number" id="input-custom-bet" class="chip-input" placeholder="€">
-                    <button class="chip-btn" id="btn-deal-custom" style="border-radius: 6px; font-size: 0.7rem;">GO</button>
+                    <button class="chip-btn" id="btn-deal-custom">GO</button>
                 </div>
             </div>
         </div>
@@ -217,7 +234,6 @@
 
         const suits = ['♠', '♥', '♦', '♣'], values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-        // Repariertes Elements-Objekt - hier haben vorher Buttons gefehlt!
         const elements = {
             bankroll: document.getElementById('bankroll-display'),
             correct: document.getElementById('correct-display'),
@@ -288,15 +304,15 @@
             
             highlightBetButton(amount);
             
-            if (getHandDetails(hands[0].cards).score === 21) { hands[0].stood = true; gameActive = false; playDealer(); } 
-            else updateUI(true);
+            // Nutze Advance Hand um Auto-Stand bei Blackjack aufzufangen
+            advanceHand(false);
         }
 
         function highlightBetButton(amount) {
             elements.betBtns.forEach(btn => {
                 btn.classList.toggle('active', parseInt(btn.dataset.bet) === amount);
             });
-            elements.customInput.style.borderColor = (parseInt(elements.customInput.value) === amount) ? "#f1c40f" : "#f1c40f";
+            elements.customInput.style.borderColor = (parseInt(elements.customInput.value) === amount) ? "#f1c40f" : "";
         }
 
         function handleAction(action) {
@@ -311,8 +327,9 @@
             else { 
                 wrongDecisions++; 
                 showFeedback(`Falsch! (Korrekt: ${correctMove})`, "red"); 
+                elements.board.classList.remove('flash-error');
+                void elements.board.offsetWidth; 
                 elements.board.classList.add('flash-error');
-                setTimeout(() => elements.board.classList.remove('flash-error'), 500);
             }
             
             elements.correct.innerText = `Richtig: ${correctDecisions}`;
@@ -326,35 +343,70 @@
 
         function executeHit() { 
             hands[currentHandIndex].cards.push(deck.pop()); 
-            if (getHandDetails(hands[currentHandIndex].cards).score > 21) hands[currentHandIndex].bust = true;
+            let score = getHandDetails(hands[currentHandIndex].cards).score;
+            if (score > 21) hands[currentHandIndex].bust = true;
             advanceHand(false); 
         }
-        function executeStand() { hands[currentHandIndex].stood = true; advanceHand(true); }
+        
+        function executeStand() { 
+            hands[currentHandIndex].stood = true; 
+            advanceHand(true); 
+        }
+        
         function executeDouble() { 
             bankroll -= currentBet; hands[currentHandIndex].bet += currentBet; 
             hands[currentHandIndex].cards.push(deck.pop()); 
-            if (getHandDetails(hands[currentHandIndex].cards).score > 21) hands[currentHandIndex].bust = true;
-            hands[currentHandIndex].stood = true; advanceHand(true); 
+            let score = getHandDetails(hands[currentHandIndex].cards).score;
+            if (score > 21) hands[currentHandIndex].bust = true;
+            hands[currentHandIndex].stood = true; 
+            advanceHand(true); 
         }
+        
         function executeSplit() {
             bankroll -= currentBet;
             let h = hands[currentHandIndex];
+            let c1 = h.cards[0], c2 = h.cards[1];
             hands.splice(currentHandIndex, 1, 
-                { cards: [h.cards[0], deck.pop()], bet: currentBet, bust: false, stood: false },
-                { cards: [h.cards[1], deck.pop()], bet: currentBet, bust: false, stood: false }
+                { cards: [c1, deck.pop()], bet: currentBet, bust: false, stood: false },
+                { cards: [c2, deck.pop()], bet: currentBet, bust: false, stood: false }
             );
-            updateUI();
+            // Casino Rule: Nur 1 Karte beim Splitten von Assen
+            if (c1.value === 'A') {
+                hands[currentHandIndex].stood = true;
+                hands[currentHandIndex + 1].stood = true;
+            }
+            advanceHand(false);
         }
 
         function advanceHand(next) {
             if (next) currentHandIndex++;
-            if (currentHandIndex >= hands.length || hands[currentHandIndex].bust || hands[currentHandIndex].stood) {
-                if (currentHandIndex < hands.length - 1) advanceHand(true);
-                else { gameActive = false; playDealer(); }
-            } else updateUI();
+            
+            while (currentHandIndex < hands.length) {
+                let h = hands[currentHandIndex];
+                let score = getHandDetails(h.cards).score;
+                
+                // Auto-Stand wenn Score genau 21 ist
+                if (score === 21 && !h.bust) {
+                    h.stood = true;
+                }
+                
+                if (h.bust || h.stood) {
+                    currentHandIndex++;
+                } else {
+                    break;
+                }
+            }
+            
+            if (currentHandIndex >= hands.length) { 
+                gameActive = false; 
+                playDealer(); 
+            } else {
+                updateUI();
+            }
         }
 
         function playDealer() {
+            updateUI(false);
             if (!hands.every(h => h.bust)) {
                 while (getHandDetails(dealerHand).score < 17) dealerHand.push(deck.pop());
             }
@@ -381,7 +433,6 @@
             let profit = totalPayout - totalBetSpent;
             
             if (profit >= 0) {
-                // Bei einem Push (Profit 0) oder Gewinn wird es angezeigt
                 elements.winAnim.innerText = `+ ${profit} €`;
                 elements.winAnim.classList.remove('show');
                 void elements.winAnim.offsetWidth;
