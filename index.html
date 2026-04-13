@@ -94,7 +94,7 @@
         #btn-split { background-color: #555; }
         .controls button:disabled { background-color: #333 !important; color: #666 !important; cursor: not-allowed; }
 
-        /* NEU: Horizontale Einsatz Leiste ganz unten */
+        /* Horizontale Einsatz Leiste ganz unten */
         .bet-row {
             display: flex; justify-content: center; align-items: center; gap: 12px;
             margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);
@@ -213,9 +213,11 @@
         let showScores = true, gameActive = false;
         let deck = [], dealerHand = [], hands = [], currentHandIndex = 0;
         let bankrollHistory = [50], roundLabels = [0], totalRoundsPlayed = 0, bankrollChart = null;
+        let toastTimeout;
 
         const suits = ['♠', '♥', '♦', '♣'], values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
+        // Repariertes Elements-Objekt - hier haben vorher Buttons gefehlt!
         const elements = {
             bankroll: document.getElementById('bankroll-display'),
             correct: document.getElementById('correct-display'),
@@ -233,7 +235,10 @@
             btnHit: document.getElementById('btn-hit'),
             btnStand: document.getElementById('btn-stand'),
             btnDouble: document.getElementById('btn-double'),
-            btnSplit: document.getElementById('btn-split')
+            btnSplit: document.getElementById('btn-split'),
+            btnToggleScores: document.getElementById('btn-toggle-scores'),
+            btnSaveScore: document.getElementById('btn-save-score'),
+            btnShowLeaderboard: document.getElementById('btn-show-leaderboard')
         };
 
         // --- Init & Chart ---
@@ -278,7 +283,7 @@
             hands = [{ cards: [deck.pop(), deck.pop()], bet: amount, bust: false, stood: false }];
             currentHandIndex = 0;
             
-            elements.msg.innerText = "Dein Zug!";
+            elements.msg.innerText = "";
             elements.winAnim.classList.remove('show');
             
             highlightBetButton(amount);
@@ -291,15 +296,14 @@
             elements.betBtns.forEach(btn => {
                 btn.classList.toggle('active', parseInt(btn.dataset.bet) === amount);
             });
-            // Auch Custom Highlight falls nötig
-            elements.customInput.style.borderColor = (parseInt(elements.customInput.value) === amount) ? "#f1c40f" : "#444";
+            elements.customInput.style.borderColor = (parseInt(elements.customInput.value) === amount) ? "#f1c40f" : "#f1c40f";
         }
 
         function handleAction(action) {
             let hand = hands[currentHandIndex];
             const canDouble = hand.cards.length === 2 && bankroll >= currentBet;
             const v1 = ['J','Q','K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
-            const v2 = ['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value;
+            const v2 = hand.cards.length > 1 ? (['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value) : "";
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= currentBet && hands.length < 4;
             
             let correctMove = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
@@ -375,14 +379,18 @@
 
             elements.msg.innerHTML = results.join(" | ");
             let profit = totalPayout - totalBetSpent;
+            
             if (profit >= 0) {
+                // Bei einem Push (Profit 0) oder Gewinn wird es angezeigt
                 elements.winAnim.innerText = `+ ${profit} €`;
+                elements.winAnim.classList.remove('show');
+                void elements.winAnim.offsetWidth;
                 elements.winAnim.classList.add('show');
             }
+
             updateChart(); updateUI(false);
         }
 
-        // --- Helper ---
         function getCorrectMove(pCards, dCard, canP, canD) {
             const { score: pS, isSoft: soft } = getHandDetails(pCards);
             const dV = ['J','Q','K'].includes(dCard.value) ? 10 : (dCard.value === 'A' ? 11 : parseInt(dCard.value));
@@ -433,7 +441,6 @@
                 elements.btnDouble.disabled = !canD;
                 elements.btnSplit.disabled = !(h.cards.length === 2 && v1 === v2 && hands.length < 4 && bankroll >= currentBet);
             }
-            // Bet Buttons ausgrauen während Spiel
             elements.betBtns.forEach(b => b.disabled = gameActive);
             elements.btnCustom.disabled = gameActive; elements.customInput.disabled = gameActive;
         }
@@ -457,16 +464,38 @@
         elements.btnStand.addEventListener('click', () => handleAction('S'));
         elements.btnDouble.addEventListener('click', () => handleAction('D'));
         elements.btnSplit.addEventListener('click', () => handleAction('P'));
+        
+        elements.btnToggleScores.addEventListener('click', () => { 
+            showScores = !showScores; 
+            elements.btnToggleScores.innerText = `Werte: ${showScores?'AN':'AUS'}`; 
+            updateUI(!gameActive); 
+        });
+
+        // Speichern in Supabase
+        elements.btnSaveScore.addEventListener('click', async () => {
+            if (!supabaseClient) { alert("Supabase nicht erreichbar."); return; }
+            if (gameActive) { alert("Beende erst die Runde!"); return; }
+            let playerName = prompt(`Dein Score: ${bankroll} €. Name?`);
+            if (!playerName || playerName.trim() === "") return;
+            elements.btnSaveScore.innerText = "Speichere...";
+            let totalAllDecisions = correctDecisions + wrongDecisions;
+            let accuracy = totalAllDecisions > 0 ? Math.round((correctDecisions / totalAllDecisions) * 100) : 0;
+            const { error } = await supabaseClient.from('leaderboard').insert([{ 
+                name: playerName.trim(), score: bankroll, rounds_played: totalAllDecisions, accuracy: accuracy             
+            }]);
+            elements.btnSaveScore.innerText = "💾 Save";
+            if (error) alert("Fehler beim Speichern."); else { showFeedback("Gespeichert!", "green"); fetchLeaderboard(); }
+        });
+
         elements.btnShowLeaderboard.addEventListener('click', fetchLeaderboard);
-        document.getElementById('btn-close-modal').onclick = () => document.getElementById('leaderboard-modal').style.display = 'none';
-        btnToggleScores.onclick = () => { showScores = !showScores; btnToggleScores.innerText = `Werte: ${showScores?'AN':'AUS'}`; updateUI(!gameActive); };
+        document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('leaderboard-modal').style.display = 'none');
 
         async function fetchLeaderboard() {
             if (!supabaseClient) return;
             document.getElementById('leaderboard-modal').style.display = 'flex';
             const { data } = await supabaseClient.from('leaderboard').select('*').order('score', { ascending: false }).limit(10);
             const list = document.getElementById('leaderboard-list'); list.innerHTML = '';
-            data.forEach((e, i) => list.innerHTML += `<li><span>#${i+1} ${e.name}</span> <span>${e.score} €</span></li>`);
+            if(data) data.forEach((e, i) => list.innerHTML += `<li><span>#${i+1} ${e.name}</span> <span>${e.score} €</span></li>`);
         }
 
         initChart(); buildDeck();
