@@ -91,25 +91,15 @@
         #btn-hit { background-color: #3498db; }
         #btn-stand { background-color: #e74c3c; }
         #btn-double { background-color: #e67e22; }
-        /* NEU: Split Button Farbe lila, nicht grau */
-        #btn-split { background-color: #8e44ad; } 
+        #btn-split { background-color: #8e44ad; }
         .controls button:disabled { background-color: #333 !important; color: #666 !important; cursor: not-allowed; }
 
-        /* NEU: Massive Hervorhebung der aktiven Hand */
+        /* Massive Hervorhebung der aktiven Hand */
         .player-hands-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; width: 100%; }
-        
-        .hand-area { 
-            padding: 10px; border-radius: 8px; border: 4px solid transparent; min-width: 150px; 
-            transition: all 0.3s ease; /* Weicher Übergang */
-        }
-        
-        .hand-area.active { 
-            border-color: #f1c40f; /* Dicker Goldrahmen */
-            background: rgba(241, 196, 15, 0.15); /* Heller Goldhintergrund */
-            box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); /* Glow-Effekt */
-        }
+        .hand-area { padding: 10px; border-radius: 8px; border: 4px solid transparent; min-width: 150px; transition: all 0.3s ease; }
+        .hand-area.active { border-color: #f1c40f; background: rgba(241, 196, 15, 0.15); box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); }
 
-        /* Horizontale Einsatz Leiste ganz unten */
+        /* Horizontale Einsatz Leiste */
         .bet-row {
             display: flex; justify-content: center; align-items: center; gap: clamp(6px, 1.5vw, 12px);
             margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);
@@ -119,7 +109,7 @@
         .chip-btn, .chip-input {
             width: clamp(40px, 10vw, 55px);
             height: clamp(40px, 10vw, 55px);
-            flex-shrink: 0;
+            flex-shrink: 0; 
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             box-sizing: border-box; margin: 0; padding: 0;
@@ -137,16 +127,11 @@
         .chip-input {
             background: transparent; border: 2px dashed #f1c40f; 
             color: #f1c40f; text-align: center; font-weight: bold; outline: none;
-            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
-            -moz-appearance: textfield;
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem); -moz-appearance: textfield;
         }
         .chip-input::-webkit-outer-spin-button,
         .chip-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
-        #btn-deal-custom {
-            width: auto; height: clamp(35px, 8vw, 45px); border-radius: 6px; 
-            padding: 0 10px; font-size: clamp(0.7rem, 2vw, 0.85rem);
-        }
+        #btn-deal-custom { width: auto; height: clamp(35px, 8vw, 45px); border-radius: 6px; padding: 0 10px; font-size: clamp(0.7rem, 2vw, 0.85rem); }
 
         .chart-wrapper { max-width: 650px; margin: 20px auto; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px; border: 2px solid #145a2b; height: 200px; }
 
@@ -166,11 +151,8 @@
             background: #111; border: 2px solid #d4af37; padding: 20px; border-radius: 10px;
             max-width: 450px; width: 90%; text-align: center;
         }
-        .leaderboard-list { list-style: none; padding: 0; margin: 20px 0; max-height: 250px; overflow-y: auto; }
-        .leaderboard-list li { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 10px 8px; border-bottom: 1px solid #333; 
-        }
+        .leaderboard-list { list-style: none; padding: 0; margin: 20px 0; max-height: 300px; overflow-y: auto; }
+        .leaderboard-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px; border-bottom: 1px solid #333; }
         .close-modal-btn { background: #c0392b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;}
     </style>
 </head>
@@ -241,8 +223,7 @@
         try { if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
 
         let bankroll = 50;
-        let lastBet = 0;
-        let currentBet = 0;
+        let lastBet = 0, currentBet = 0;
         let correctDecisions = 0, wrongDecisions = 0;
         let showScores = true, gameActive = false;
         let deck = [], dealerHand = [], hands = [], currentHandIndex = 0;
@@ -274,7 +255,6 @@
             btnShowLeaderboard: document.getElementById('btn-show-leaderboard')
         };
 
-        // --- Init & Chart ---
         function initChart() {
             const ctx = document.getElementById('bankrollChart').getContext('2d');
             bankrollChart = new Chart(ctx, {
@@ -291,7 +271,6 @@
             bankrollChart.update();
         }
 
-        // --- Game Logic ---
         function buildDeck() {
             deck = []; for (let d=0; d<6; d++) values.forEach(v => suits.forEach(s => deck.push({suit:s, value:v})));
             for (let i=deck.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
@@ -308,10 +287,7 @@
             if (bankroll < amount) { showFeedback("Zu wenig Guthaben!", "red"); return; }
             if (deck.length < 52) buildDeck();
             
-            lastBet = amount;
-            currentBet = amount;
-            bankroll -= amount;
-            gameActive = true;
+            lastBet = amount; currentBet = amount; bankroll -= amount; gameActive = true;
             dealerHand = [deck.pop(), deck.pop()];
             hands = [{ cards: [deck.pop(), deck.pop()], bet: amount, bust: false, stood: false }];
             currentHandIndex = 0;
@@ -320,7 +296,6 @@
             elements.winAnim.classList.remove('show');
             
             highlightBetButton(amount);
-            
             advanceHand(false);
         }
 
@@ -336,7 +311,6 @@
             const canDouble = hand.cards.length === 2 && bankroll >= currentBet;
             const v1 = ['J','Q','K'].includes(hand.cards[0].value) ? '10' : hand.cards[0].value;
             const v2 = hand.cards.length > 1 ? (['J','Q','K'].includes(hand.cards[1].value) ? '10' : hand.cards[1].value) : "";
-            // NEU: Unendliches Splitten, sofern Guthaben vorhanden (Keine Begrenzung auf 4 Hände)
             const canSplit = hand.cards.length === 2 && v1 === v2 && bankroll >= currentBet;
             
             let correctMove = getCorrectMove(hand.cards, dealerHand[0], canSplit, canDouble);
@@ -364,12 +338,7 @@
             if (score > 21) hands[currentHandIndex].bust = true;
             advanceHand(false); 
         }
-        
-        function executeStand() { 
-            hands[currentHandIndex].stood = true; 
-            advanceHand(true); 
-        }
-        
+        function executeStand() { hands[currentHandIndex].stood = true; advanceHand(true); }
         function executeDouble() { 
             bankroll -= currentBet; hands[currentHandIndex].bet += currentBet; 
             hands[currentHandIndex].cards.push(deck.pop()); 
@@ -378,55 +347,26 @@
             hands[currentHandIndex].stood = true; 
             advanceHand(true); 
         }
-        
         function executeSplit() {
-            bankroll -= currentBet;
-            let h = hands[currentHandIndex];
-            let c1 = h.cards[0], c2 = h.cards[1];
+            bankroll -= currentBet; let h = hands[currentHandIndex]; let c1 = h.cards[0], c2 = h.cards[1];
             hands.splice(currentHandIndex, 1, 
                 { cards: [c1, deck.pop()], bet: currentBet, bust: false, stood: false },
                 { cards: [c2, deck.pop()], bet: currentBet, bust: false, stood: false }
             );
-            // Casino Rule: Nur 1 Karte beim Splitten von Assen
-            if (c1.value === 'A') {
-                hands[currentHandIndex].stood = true;
-                hands[currentHandIndex + 1].stood = true;
-            }
-            // Bleibe bei derselben Hand (die jetzt Karte 1 des Splits ist), advanceHand(false) prüft auf 21/Bust/Stood
+            if (c1.value === 'A') { hands[currentHandIndex].stood = true; hands[currentHandIndex + 1].stood = true; }
             advanceHand(false);
         }
 
-        // --- NEU: Optimierte Logik für Hand-Wechsel und Highlight ---
         function advanceHand(incrementIndex) {
             if (incrementIndex) currentHandIndex++;
-            
-            // Schleife um beendete Hände (Bust, Stood, 21) zu überspringen
             while (currentHandIndex < hands.length) {
                 let h = hands[currentHandIndex];
                 let score = getHandDetails(h.cards).score;
-                
-                // Auto-Stand wenn Score genau 21 ist
-                if (score === 21 && !h.bust) {
-                    h.stood = true;
-                }
-                
-                // Wenn Hand beendet ist, gehe zur nächsten
-                if (h.bust || h.stood) {
-                    currentHandIndex++;
-                } else {
-                    // Gültige Hand gefunden, stoppe Schleife
-                    break;
-                }
+                if (score === 21 && !h.bust) h.stood = true;
+                if (h.bust || h.stood) currentHandIndex++; else break;
             }
-            
-            // Wenn keine Hände mehr übrig sind, spielt der Dealer
-            if (currentHandIndex >= hands.length) { 
-                gameActive = false; 
-                playDealer(); 
-            } else {
-                // UI aktualisieren (setzt das Highlight auf die neue currentHandIndex)
-                updateUI();
-            }
+            if (currentHandIndex >= hands.length) { gameActive = false; playDealer(); } 
+            else updateUI();
         }
 
         function playDealer() {
@@ -439,18 +379,30 @@
 
         function determineWinner() {
             let dScore = getHandDetails(dealerHand).score, dBust = dScore > 21;
-            let totalPayout = 0, totalBetSpent = 0;
-            let results = [];
+            let dBlackjack = dScore === 21 && dealerHand.length === 2;
+            let totalPayout = 0, totalBetSpent = 0, results = [];
 
+            // KORRIGIERTE LOGIK: Blackjack schlägt normale 21
             hands.forEach(h => {
                 totalBetSpent += h.bet;
                 let pScore = getHandDetails(h.cards).score;
-                if (h.bust) results.push("Bust");
-                else if (dBust || pScore > dScore) { 
-                    let pay = (pScore === 21 && h.cards.length === 2) ? h.bet * 2.5 : h.bet * 2;
-                    bankroll += pay; totalPayout += pay; results.push("Gewonnen");
-                } else if (pScore === dScore) { bankroll += h.bet; totalPayout += h.bet; results.push("Push"); }
-                else results.push("Verloren");
+                let pBlackjack = pScore === 21 && h.cards.length === 2 && hands.length === 1;
+
+                if (h.bust) {
+                    results.push("Bust");
+                } else if (pBlackjack && !dBlackjack) {
+                    bankroll += h.bet * 2.5; totalPayout += h.bet * 2.5; results.push("Blackjack!");
+                } else if (!pBlackjack && dBlackjack) {
+                    results.push("Verloren");
+                } else if (pBlackjack && dBlackjack) {
+                    bankroll += h.bet; totalPayout += h.bet; results.push("Push");
+                } else if (dBust || pScore > dScore) {
+                    bankroll += h.bet * 2; totalPayout += h.bet * 2; results.push("Gewonnen");
+                } else if (pScore === dScore) {
+                    bankroll += h.bet; totalPayout += h.bet; results.push("Push");
+                } else {
+                    results.push("Verloren");
+                }
             });
 
             elements.msg.innerHTML = results.join(" | ");
@@ -466,7 +418,6 @@
             updateChart(); updateUI(false);
         }
 
-        // --- Helper ---
         function getCorrectMove(pCards, dCard, canP, canD) {
             const { score: pS, isSoft: soft } = getHandDetails(pCards);
             const dV = ['J','Q','K'].includes(dCard.value) ? 10 : (dCard.value === 'A' ? 11 : parseInt(dCard.value));
@@ -492,16 +443,12 @@
             return 'H';
         }
 
-        // --- NEU: UI Funktion setzt das .active Highlight basierend auf currentHandIndex ---
         function updateUI(hideDealer = true) {
             elements.dealerCards.innerHTML = ''; dealerHand.forEach((c, i) => elements.dealerCards.appendChild(renderCard(c, i === 1 && hideDealer)));
             elements.dealerScore.innerText = showScores ? (hideDealer ? getHandDetails([dealerHand[0]]).score : getHandDetails(dealerHand).score) : "";
             elements.playerContainer.innerHTML = '';
             hands.forEach((h, i) => {
-                let div = document.createElement('div'); 
-                // Setze Highlight nur wenn Spiel aktiv und es die aktuelle Hand ist
-                div.className = `hand-area ${i === currentHandIndex && gameActive ? 'active' : ''}`;
-                
+                let div = document.createElement('div'); div.className = `hand-area ${i === currentHandIndex && gameActive ? 'active' : ''}`;
                 let cardsDiv = document.createElement('div'); cardsDiv.className = 'cards'; h.cards.forEach(c => cardsDiv.appendChild(renderCard(c)));
                 let scoreDiv = document.createElement('div'); scoreDiv.className = 'score-display';
                 scoreDiv.innerText = showScores ? getHandDetails(h.cards).score : "";
@@ -519,7 +466,6 @@
                 const v1 = ['J','Q','K'].includes(h.cards[0].value) ? '10' : h.cards[0].value;
                 const v2 = h.cards.length > 1 ? (['J','Q','K'].includes(h.cards[1].value) ? '10' : h.cards[1].value) : "";
                 elements.btnDouble.disabled = !canD;
-                // Splitten ohne Hände-Limit (Vorher hands.length < 4)
                 elements.btnSplit.disabled = !(h.cards.length === 2 && v1 === v2 && bankroll >= currentBet);
             }
             elements.betBtns.forEach(b => b.disabled = gameActive);
@@ -538,7 +484,6 @@
             toastTimeout = setTimeout(() => elements.toast.className = '', 2000);
         }
 
-        // --- Event Listeners ---
         elements.betBtns.forEach(b => b.addEventListener('click', (e) => startGame(parseInt(e.target.dataset.bet))));
         elements.btnCustom.addEventListener('click', () => startGame(parseInt(elements.customInput.value || 0)));
         elements.btnHit.addEventListener('click', () => handleAction('H'));
@@ -552,7 +497,6 @@
             updateUI(!gameActive); 
         });
 
-        // Speichern in Supabase
         elements.btnSaveScore.addEventListener('click', async () => {
             if (!supabaseClient) { alert("Supabase nicht erreichbar."); return; }
             if (gameActive) { alert("Beende erst die Runde!"); return; }
@@ -571,7 +515,6 @@
         elements.btnShowLeaderboard.addEventListener('click', fetchLeaderboard);
         document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('leaderboard-modal').style.display = 'none');
 
-        // NEU: Top 10 Fetch zeigt Accuracy und Entscheidungen
         async function fetchLeaderboard() {
             if (!supabaseClient) return;
             document.getElementById('leaderboard-modal').style.display = 'flex';
