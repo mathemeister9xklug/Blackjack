@@ -245,33 +245,41 @@
         // --- Leaderboard & Supabase Logik ---
         
         btnSaveScore.addEventListener('click', async () => {
-            if (gameActive) {
-                alert("Beende erst die laufende Runde!");
-                return;
-            }
-            
-            let playerName = prompt(`Dein aktueller Score ist ${bankroll} €. Unter welchem Namen möchtest du speichern?`);
-            
-            if (!playerName || playerName.trim() === "") return;
-            
-            btnSaveScore.innerText = "Speichere...";
-            btnSaveScore.disabled = true;
+    if (gameActive) {
+        alert("Beende erst die laufende Runde!");
+        return;
+    }
+    
+    let playerName = prompt(`Dein aktueller Score ist ${bankroll} €. Unter welchem Namen möchtest du speichern?`);
+    
+    if (!playerName || playerName.trim() === "") return;
+    
+    btnSaveScore.innerText = "Speichere...";
+    btnSaveScore.disabled = true;
 
-            const { data, error } = await supabaseClient
-                .from('leaderboard')
-                .insert([{ name: playerName.trim(), score: bankroll }]);
+    // Berechne die Genauigkeit in Prozent (nur wenn mindestens 1 Entscheidung getroffen wurde)
+    let accuracy = roundTotal > 0 ? Math.round((correctDecisions / roundTotal) * 100) : 0;
 
-            btnSaveScore.innerText = "💾 Score speichern";
-            btnSaveScore.disabled = false;
+    const { data, error } = await supabaseClient
+        .from('leaderboard')
+        .insert([{ 
+            name: playerName.trim(), 
+            score: bankroll,
+            rounds_played: roundTotal,     // Neue Spalte
+            accuracy: accuracy             // Neue Spalte
+        }]);
 
-            if (error) {
-                console.error(error);
-                alert("Fehler beim Speichern. Hast du die Supabase-Keys im Code eingetragen?");
-            } else {
-                showFeedback("Score gespeichert!", "green");
-                fetchAndShowLeaderboard();
-            }
-        });
+    btnSaveScore.innerText = "💾 Score speichern";
+    btnSaveScore.disabled = false;
+
+    if (error) {
+        console.error(error);
+        alert("Fehler beim Speichern. Hast du die Supabase-Keys im Code eingetragen?");
+    } else {
+        showFeedback("Score gespeichert!", "green");
+        fetchAndShowLeaderboard();
+    }
+});
 
         btnShowLeaderboard.addEventListener('click', fetchAndShowLeaderboard);
         
@@ -279,34 +287,43 @@
             leaderboardModal.style.display = 'none';
         });
 
-        async function fetchAndShowLeaderboard() {
-            leaderboardModal.style.display = 'flex';
-            leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
+      async function fetchAndShowLeaderboard() {
+    leaderboardModal.style.display = 'flex';
+    leaderboardList.innerHTML = "<li>Lade Daten aus Supabase...</li>";
 
-            const { data, error } = await supabaseClient
-                .from('leaderboard')
-                .select('*')
-                .order('score', { ascending: false })
-                .limit(10); // Die Top 10 holen
+    const { data, error } = await supabaseClient
+        .from('leaderboard')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10); // Die Top 10 holen
 
-            if (error) {
-                console.error(error);
-                leaderboardList.innerHTML = "<li>Fehler beim Laden.</li>";
-                return;
-            }
+    if (error) {
+        console.error(error);
+        leaderboardList.innerHTML = "<li>Fehler beim Laden.</li>";
+        return;
+    }
 
-            if (data.length === 0) {
-                leaderboardList.innerHTML = "<li>Noch keine Einträge!</li>";
-                return;
-            }
+    if (data.length === 0) {
+        leaderboardList.innerHTML = "<li>Noch keine Einträge!</li>";
+        return;
+    }
 
-            leaderboardList.innerHTML = "";
-            data.forEach((entry, index) => {
-                let li = document.createElement('li');
-                li.innerHTML = `<span>#${index + 1} ${entry.name}</span> <span>${entry.score} €</span>`;
-                leaderboardList.appendChild(li);
-            });
-        }
+    leaderboardList.innerHTML = "";
+    data.forEach((entry, index) => {
+        let li = document.createElement('li');
+        // Layout: Links Name + Stats, Rechts der Score in Grün
+        li.innerHTML = `
+            <div style="text-align: left; line-height: 1.3;">
+                <strong>#${index + 1} ${entry.name}</strong><br>
+                <span style="font-size: 0.85rem; color: #aaa;">
+                    ${entry.rounds_played || 0} Entscheidungen | ${entry.accuracy || 0}% richtig
+                </span>
+            </div> 
+            <span style="font-size: 1.2rem; display: flex; align-items: center;">${entry.score} €</span>
+        `;
+        leaderboardList.appendChild(li);
+    });
+}
 
 
         // --- Restlicher Game-Code ---
