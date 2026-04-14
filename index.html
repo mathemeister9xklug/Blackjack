@@ -261,7 +261,7 @@
             bankrollChart = new Chart(ctx, {
                 type: 'line',
                 data: { labels: roundLabels, datasets: [{ data: bankrollHistory, borderColor: '#d4af37', backgroundColor: 'rgba(212, 175, 55, 0.1)', fill: true, tension: 0.1, pointRadius: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#222' } }, y: { grid: { color: '#222' } } } }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#222' } }, y: { beginAtZero: true, grid: { color: '#222' } } } }
             });
         }
 
