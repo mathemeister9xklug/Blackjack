@@ -211,7 +211,7 @@
 
     <div class="modal-overlay" id="leaderboard-modal">
         <div class="modal-content">
-            <h2>🏆 Hall of Fame</h2>
+            <h2>🏆 Highscore (Highest Bankroll)</h2>
             <ul class="leaderboard-list" id="leaderboard-list"></ul>
             <button class="close-modal-btn" id="btn-close-modal">Schließen</button>
         </div>
@@ -224,6 +224,7 @@
         try { if (window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {}
 
         let bankroll = 50;
+        let highestBankroll = 50;
         let lastBet = 0, currentBet = 0;
         let correctDecisions = 0, wrongDecisions = 0;
         let showScores = true, gameActive = false;
@@ -415,6 +416,9 @@
                 void elements.winAnim.offsetWidth;
                 elements.winAnim.classList.add('show');
             }
+            
+            // Highest Bankroll check
+            if (bankroll > highestBankroll) highestBankroll = bankroll;
 
             updateChart(); updateUI(false);
         }
@@ -501,13 +505,13 @@
         elements.btnSaveScore.addEventListener('click', async () => {
             if (!supabaseClient) { alert("Supabase nicht erreichbar."); return; }
             if (gameActive) { alert("Beende erst die Runde!"); return; }
-            let playerName = prompt(`Dein Score: ${bankroll} €. Name?`);
+            let playerName = prompt(`Deine Highest Bankroll: ${highestBankroll} €. Name?`);
             if (!playerName || playerName.trim() === "") return;
             elements.btnSaveScore.innerText = "Speichere...";
             let totalAllDecisions = correctDecisions + wrongDecisions;
             let accuracy = totalAllDecisions > 0 ? Math.round((correctDecisions / totalAllDecisions) * 100) : 0;
             const { error } = await supabaseClient.from('leaderboard').insert([{ 
-                name: playerName.trim(), score: bankroll, rounds_played: totalAllDecisions, accuracy: accuracy             
+                name: playerName.trim(), score: highestBankroll, rounds_played: totalAllDecisions, accuracy: accuracy             
             }]);
             elements.btnSaveScore.innerText = "💾 Save";
             if (error) alert("Fehler beim Speichern."); else { showFeedback("Gespeichert!", "green"); fetchLeaderboard(); }
